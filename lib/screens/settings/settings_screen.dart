@@ -157,9 +157,10 @@ class SettingsScreen extends ConsumerWidget {
 
     if (confirm == true) {
       final db = ref.read(databaseServiceProvider);
-      await db.close();
+      await db.clearAll();
       ref.invalidate(photosProvider);
       ref.invalidate(storageStatsProvider);
+      ref.invalidate(duplicatesProvider);
       ref.invalidate(vaultDocumentsProvider);
     }
   }
@@ -174,9 +175,9 @@ class SettingsScreen extends ConsumerWidget {
         CompressionMode.lossless =>
           'No quality loss, strips metadata only',
         CompressionMode.smart =>
-          '75% JPEG quality, ~40–60% size reduction',
+          '82% JPEG quality, ~40–60% size reduction',
         CompressionMode.aggressive =>
-          '50% quality + resize, up to 90% reduction',
+          '60% quality + resize to 1920px, up to 90% reduction',
       };
 }
 

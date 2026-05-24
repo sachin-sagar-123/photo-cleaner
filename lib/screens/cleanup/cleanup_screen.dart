@@ -136,12 +136,14 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
     if (confirm != true) return;
 
     final db = ref.read(databaseServiceProvider);
+    final photos = await db.getAllPhotos();
     for (final id in _selected) {
-      final photos = await db.getAllPhotos();
-      final photo =
-          photos.firstWhere((p) => p.id == id, orElse: () => photos.first);
-      final file = File(photo.path);
-      if (await file.exists()) await file.delete();
+      final photo = photos.where((p) => p.id == id).firstOrNull;
+      if (photo == null) continue; // skip stale selections
+      if (photo.path.isNotEmpty) {
+        final file = File(photo.path);
+        if (await file.exists()) await file.delete();
+      }
       await db.deletePhoto(id);
     }
 
@@ -160,17 +162,39 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
     final toCompress =
         photos.where((p) => _selected.contains(p.id)).toList();
 
-    await compression.compressBatch(
+    final results = await compression.compressBatch(
       toCompress.map((p) => p.path).toList(),
       _compressionMode,
       onProgress: (done, total) {},
     );
 
+    // Replace originals with compressed versions
+    int totalSaved = 0;
+    for (final result in results) {
+      if (result.compressedBytes < result.originalBytes) {
+        try {
+          final compressedFile = File(result.compressedPath);
+          final originalFile = File(result.originalPath);
+          if (await compressedFile.exists() && await originalFile.exists()) {
+            await compressedFile.copy(result.originalPath);
+            await compressedFile.delete();
+            totalSaved += result.originalBytes - result.compressedBytes;
+          }
+        } catch (_) {
+          // Skip files that fail to replace
+        }
+      }
+    }
+
     setState(() => _compressing = false);
+    ref.invalidate(photosProvider);
+    ref.invalidate(storageStatsProvider);
     if (mounted) {
+      final savedMB = (totalSaved / (1024 * 1024)).toStringAsFixed(1);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Compressed ${toCompress.length} photos'),
+          content: Text(
+              'Compressed ${results.length} photos, saved $savedMB MB'),
           backgroundColor: AppTheme.secondary,
         ),
       );

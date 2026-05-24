@@ -76,7 +76,9 @@ class DriveSyncService {
 
   Future<void> _initDriveApi() async {
     if (_currentUser == null) return;
+    // Re-fetch authentication to get a fresh (or refreshed) access token
     final auth = await _currentUser!.authentication;
+    _httpClient?.close();
     _httpClient = http.Client();
     final client = _AuthClient(
       {'Authorization': 'Bearer ${auth.accessToken}'},
@@ -85,8 +87,10 @@ class DriveSyncService {
     _driveApi = drive.DriveApi(client);
   }
 
+  /// Re-initializes the Drive API client to refresh the OAuth token.
+  /// Called before every public operation to avoid stale 1-hour tokens.
   Future<void> _ensureAuth() async {
-    if (_driveApi == null) await _initDriveApi();
+    await _initDriveApi();
   }
 
   // ── Drive Scan Pipeline ───────────────────────────────────────────────────

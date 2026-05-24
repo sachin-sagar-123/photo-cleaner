@@ -14,6 +14,9 @@ final vaultServiceProvider = Provider((_) => DocumentVaultService());
 
 // ── Scan State ────────────────────────────────────────────────────────────
 
+/// Sentinel used by copyWith to distinguish "not passed" from "explicitly null".
+const _sentinel = Object();
+
 class ScanState {
   final bool isScanning;
   final ScanProgress? progress;
@@ -25,29 +28,38 @@ class ScanState {
     this.error,
   });
 
+  /// [error] and [progress] accept explicit null to clear the field.
+  /// Pass nothing (omit the parameter) to keep the current value.
   ScanState copyWith({
     bool? isScanning,
-    ScanProgress? progress,
-    String? error,
+    Object? progress = _sentinel,
+    Object? error = _sentinel,
   }) =>
       ScanState(
         isScanning: isScanning ?? this.isScanning,
-        progress: progress ?? this.progress,
-        error: error ?? this.error,
+        progress: progress == _sentinel
+            ? this.progress
+            : progress as ScanProgress?,
+        error: error == _sentinel ? this.error : error as String?,
       );
 }
 
 class ScanNotifier extends StateNotifier<ScanState> {
   final ScannerService _scanner;
+  final Ref _ref;
 
-  ScanNotifier(this._scanner) : super(const ScanState());
+  ScanNotifier(this._scanner, this._ref) : super(const ScanState());
 
   Future<void> startScan() async {
-    state = state.copyWith(isScanning: true, error: null);
+    state = state.copyWith(isScanning: true, error: null, progress: null);
     try {
       await for (final progress in _scanner.scan()) {
         state = state.copyWith(progress: progress);
       }
+      // Invalidate dependent providers so UI reflects newly scanned data
+      _ref.invalidate(photosProvider);
+      _ref.invalidate(storageStatsProvider);
+      _ref.invalidate(duplicatesProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     } finally {
@@ -58,7 +70,7 @@ class ScanNotifier extends StateNotifier<ScanState> {
 
 final scanStateProvider =
     StateNotifierProvider<ScanNotifier, ScanState>((ref) {
-  return ScanNotifier(ref.read(scannerServiceProvider));
+  return ScanNotifier(ref.read(scannerServiceProvider), ref);
 });
 
 // ── Photos ────────────────────────────────────────────────────────────────
@@ -108,8 +120,8 @@ final storageStatsProvider = FutureProvider<StorageStats>((ref) async {
     if (p.isBackedUp) backedUpBytes += p.sizeBytes;
   }
 
-  // Approximate device storage (64 GB default if unavailable)
-  const totalBytes = 64 * 1024 * 1024 * 1024;
+  // 64 GB as explicit literal to avoid int overflow from 64*1024*1024*1024
+  const totalBytes = 68719476736;
 
   return StorageStats(
     totalBytes: totalBytes,
@@ -152,16 +164,19 @@ class DriveScanState {
     this.completed = false,
   });
 
+  /// [error] and [progress] accept explicit null to clear the field.
   DriveScanState copyWith({
     bool? isScanning,
-    DriveScanProgress? progress,
-    String? error,
+    Object? progress = _sentinel,
+    Object? error = _sentinel,
     bool? completed,
   }) =>
       DriveScanState(
         isScanning: isScanning ?? this.isScanning,
-        progress: progress ?? this.progress,
-        error: error ?? this.error,
+        progress: progress == _sentinel
+            ? this.progress
+            : progress as DriveScanProgress?,
+        error: error == _sentinel ? this.error : error as String?,
         completed: completed ?? this.completed,
       );
 }
@@ -174,7 +189,8 @@ class DriveScanNotifier extends StateNotifier<DriveScanState> {
       : super(const DriveScanState());
 
   Future<void> startScan() async {
-    state = state.copyWith(isScanning: true, error: null, completed: false);
+    state = state.copyWith(
+        isScanning: true, error: null, progress: null, completed: false);
     try {
       await for (final progress in _drive.scanDrive()) {
         state = state.copyWith(progress: progress);

@@ -134,10 +134,12 @@ class _DuplicatesScreenState
     final photos = await db.getAllPhotos();
 
     for (final id in _selectedToDelete) {
-      final photo = photos.firstWhere((p) => p.id == id,
-          orElse: () => photos.first);
-      final file = File(photo.path);
-      if (await file.exists()) await file.delete();
+      final photo = photos.where((p) => p.id == id).firstOrNull;
+      if (photo == null) continue; // skip stale selections
+      if (photo.path.isNotEmpty) {
+        final file = File(photo.path);
+        if (await file.exists()) await file.delete();
+      }
       await db.deletePhoto(id);
     }
 

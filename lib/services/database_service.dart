@@ -42,7 +42,7 @@ class DatabaseService {
         name TEXT NOT NULL,
         size_bytes INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
-        category INTEGER NOT NULL DEFAULT 6,
+        category INTEGER NOT NULL DEFAULT 5,
         issues TEXT,
         suggested_name TEXT,
         is_backed_up INTEGER NOT NULL DEFAULT 0,
@@ -180,6 +180,8 @@ class DatabaseService {
     final database = await db;
     await database.insert('vault_documents', doc.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
+    // Remove old FTS entry before inserting to prevent duplicates on upsert
+    await database.delete('vault_fts', where: 'id = ?', whereArgs: [doc.id]);
     await database.insert('vault_fts', {
       'id': doc.id,
       'title': doc.title,
@@ -202,9 +204,11 @@ class DatabaseService {
       [query],
     );
     if (ftsRows.isEmpty) return [];
-    final ids = ftsRows.map((r) => "'${r['id']}'").join(',');
+    final ids = ftsRows.map((r) => r['id'] as String).toList();
+    final placeholders = List.filled(ids.length, '?').join(',');
     final rows = await database.rawQuery(
-      'SELECT * FROM vault_documents WHERE id IN ($ids)',
+      'SELECT * FROM vault_documents WHERE id IN ($placeholders)',
+      ids,
     );
     return rows.map(VaultDocument.fromMap).toList();
   }
@@ -216,5 +220,24 @@ class DatabaseService {
     await database.delete('vault_fts', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<void> close() async => _db?.close();
+  /// Deletes all rows from all tables and resets the DB connection.
+  Future<void> clearAll() async {
+    final database = await db;
+    await database.delete('photo_assets');
+    await database.delete('vault_documents');
+    await database.execute('DROP TABLE IF EXISTS vault_fts');
+    await database.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS vault_fts USING fts4(
+        id TEXT,
+        title TEXT,
+        notes TEXT,
+        tags TEXT
+      )
+    ''');
+  }
+
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
 }

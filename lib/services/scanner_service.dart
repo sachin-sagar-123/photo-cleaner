@@ -28,13 +28,20 @@ class ScannerService {
 
   Stream<ScanProgress> scan() async* {
     final permission = await PhotoManager.requestPermissionExtend();
-    if (!permission.isAuth) return;
+    if (!permission.isAuth) {
+      throw Exception(
+          'Photo library permission denied. Please grant access in Settings.');
+    }
 
     final albums = await PhotoManager.getAssetPathList(
       type: RequestType.image,
       onlyAll: true,
     );
-    if (albums.isEmpty) return;
+    if (albums.isEmpty) {
+      // No albums found — yield a "done" event with 0 total so UI shows empty state
+      yield const ScanProgress(scanned: 0, total: 0, currentFile: 'No photos found');
+      return;
+    }
 
     final allAssets = await albums.first.getAssetListRange(
       start: 0,
