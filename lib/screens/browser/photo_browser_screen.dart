@@ -79,21 +79,22 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
 
   void _undoLast() {
     if (_currentIndex <= 0) return;
+    final prevIndex = _currentIndex - 1;
+    final photo = _photos[prevIndex];
     setState(() {
-      _currentIndex--;
+      _currentIndex = prevIndex;
       _reviewedCount--;
-      final photo = _photos[_currentIndex];
       _markedForDelete.remove(photo.id);
     });
     // Un-review in DB
     final db = ref.read(databaseServiceProvider);
-    db.markReviewed(_photos[_currentIndex].id, reviewed: false);
+    db.markReviewed(photo.id, reviewed: false);
   }
 
   Future<void> _finishReview() async {
     if (_markedForDelete.isEmpty) {
-      ref.invalidate(photosProvider);
       ref.invalidate(storageStatsProvider);
+      ref.invalidate(unreviewedCountProvider);
       Navigator.pop(context);
       return;
     }
@@ -138,9 +139,9 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
       await db.markAllReviewed(_markedForDelete.toList());
     }
 
-    ref.invalidate(photosProvider);
     ref.invalidate(storageStatsProvider);
     ref.invalidate(duplicatesProvider);
+    ref.invalidate(unreviewedCountProvider);
     if (mounted) Navigator.pop(context);
   }
 
@@ -264,7 +265,7 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Next card (behind)
+                // Next card (behind) — uses small thumbnail to save memory
                 if (hasNext)
                   Positioned.fill(
                     child: Transform.scale(
@@ -272,6 +273,7 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                       child: _PhotoCard(
                         photo: _photos[_currentIndex + 1],
                         opacity: 0.5,
+                        isBackground: true,
                       ),
                     ),
                   ),
@@ -444,11 +446,22 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
 class _PhotoCard extends StatelessWidget {
   final PhotoAsset photo;
   final double opacity;
+  final bool isBackground;
 
-  const _PhotoCard({required this.photo, this.opacity = 1.0});
+  const _PhotoCard({
+    required this.photo,
+    this.opacity = 1.0,
+    this.isBackground = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Background (next) card uses small thumbnail to save memory.
+    // Current card uses screen-width resolution — still much less than
+    // full 12MP (4000×3000 = 36MB RGBA vs ~1080px = ~4MB RGBA).
+    final screenWidth = MediaQuery.of(context).size.width.toInt();
+    final decodeWidth = isBackground ? 300 : screenWidth;
+
     return Opacity(
       opacity: opacity,
       child: Container(
@@ -461,6 +474,8 @@ class _PhotoCard extends StatelessWidget {
             ? Image.file(
                 File(photo.path),
                 fit: BoxFit.contain,
+                cacheWidth: decodeWidth,
+                gaplessPlayback: true,
                 errorBuilder: (_, __, ___) => const Center(
                   child: Icon(Icons.broken_image,
                       color: AppTheme.textSecondary, size: 48),

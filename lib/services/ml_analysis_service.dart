@@ -42,6 +42,98 @@ class MlAnalysisService {
     );
   }
 
+  // ── Public static methods for batch processing (no isolate overhead) ────
+  // These accept a pre-decoded image so the scanner can decode once and
+  // share the result across all analyses.
+
+  static bool isBlurryStatic(img.Image image) => _isBlurry(image);
+  static bool isLowLightStatic(img.Image image) => _isLowLight(image);
+  static bool looksLikeJunkStatic(img.Image image) => _looksLikeJunk(image);
+
+  /// Classify from a pre-decoded image. Falls back to filename heuristics
+  /// first (same as _classifyImage) but skips the decode step.
+  static PhotoCategory classifyFromImage(img.Image image, String filename) {
+    final lower = filename.toLowerCase();
+
+    // Filename fast-path
+    if (lower.contains('screenshot') ||
+        lower.startsWith('screen_') ||
+        lower.startsWith('screen-')) {
+      return PhotoCategory.screenshots;
+    }
+    if (lower.contains('document') ||
+        lower.contains('scan') ||
+        lower.contains('receipt') ||
+        lower.contains('invoice') ||
+        lower.contains('contract')) {
+      return PhotoCategory.documents;
+    }
+    if (RegExp(r'img-\d{8}-wa\d+').hasMatch(lower)) {
+      return PhotoCategory.other;
+    }
+
+    // Color analysis on pre-decoded image
+    final small = img.copyResize(image, width: 64, height: 64);
+    double rSum = 0, gSum = 0, bSum = 0;
+    double rSumSq = 0, gSumSq = 0, bSumSq = 0;
+    final count = small.width * small.height;
+
+    for (int y = 0; y < small.height; y++) {
+      for (int x = 0; x < small.width; x++) {
+        final p = small.getPixel(x, y);
+        rSum += p.r; gSum += p.g; bSum += p.b;
+        rSumSq += p.r * p.r;
+        gSumSq += p.g * p.g;
+        bSumSq += p.b * p.b;
+      }
+    }
+
+    final avgR = rSum / count;
+    final avgG = gSum / count;
+    final avgB = bSum / count;
+    final varR = (rSumSq / count) - (avgR * avgR);
+    final varG = (gSumSq / count) - (avgG * avgG);
+    final varB = (bSumSq / count) - (avgB * avgB);
+    final totalVar = varR + varG + varB;
+
+    if (totalVar < 1500 && avgR > 180 && avgG > 180 && avgB > 180) {
+      return PhotoCategory.screenshots;
+    }
+    if (avgG > avgR + 15 && avgG > avgB + 5) {
+      return PhotoCategory.nature;
+    }
+    if (avgB > avgR + 20 && avgB > avgG + 10) {
+      return PhotoCategory.nature;
+    }
+    if (avgR > avgB + 50 && avgR > 130 && avgG > 90 && avgB < 120) {
+      return PhotoCategory.food;
+    }
+    if (avgR > avgG + 10 &&
+        avgG > avgB + 5 &&
+        avgR > 140 && avgR < 240 &&
+        avgG > 90 && avgG < 190 &&
+        avgB > 70 && avgB < 160) {
+      return PhotoCategory.people;
+    }
+
+    return PhotoCategory.other;
+  }
+
+  /// Public static smart name builder for batch processing.
+  static String buildSmartNameStatic({
+    required String originalName,
+    required PhotoCategory category,
+    required DateTime createdAt,
+    String? location,
+  }) {
+    return _buildSmartName(
+      originalName: originalName,
+      category: category,
+      createdAt: createdAt,
+      location: location,
+    );
+  }
+
   // ── Isolate-safe helpers ──────────────────────────────────────────────────
 
   static List<QualityIssue> _analyzeImage(Uint8List bytes) {

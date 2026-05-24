@@ -21,6 +21,11 @@ class JunkDetectorService {
   ];
 
   bool isJunkByFilename(String filename) {
+    return isJunkByFilenameStatic(filename);
+  }
+
+  /// Static variant for batch processing in isolates.
+  static bool isJunkByFilenameStatic(String filename) {
     final lower = filename.toLowerCase();
     return _junkPatterns.any((p) => lower.contains(p));
   }

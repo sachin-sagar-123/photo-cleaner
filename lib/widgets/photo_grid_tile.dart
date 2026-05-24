@@ -30,6 +30,14 @@ class PhotoGridTile extends StatelessWidget {
             child: Image.file(
               File(asset.path),
               fit: BoxFit.cover,
+              // Decode at thumbnail resolution instead of full 12MP.
+              // Grid cells are ~120px; 200px gives crisp display on 2x screens.
+              // This reduces memory from ~36MB (full RGBA) to ~160KB per tile.
+              cacheWidth: 200,
+              cacheHeight: 200,
+              // Don't keep decoded images in the global ImageCache beyond
+              // what's visible — the grid can have thousands of tiles.
+              gaplessPlayback: true,
               errorBuilder: (_, __, ___) => Container(
                 color: AppTheme.surface,
                 child: const Icon(Icons.broken_image,

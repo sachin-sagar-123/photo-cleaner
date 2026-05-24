@@ -129,24 +129,29 @@ class _DuplicatesScreenState
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     final db = ref.read(databaseServiceProvider);
-    final photos = await db.getAllPhotos();
+    // Fetch only the selected photos instead of all 16K
+    final photos = await db.getPhotosByIds(_selectedToDelete.toList());
 
-    for (final id in _selectedToDelete) {
-      final photo = photos.where((p) => p.id == id).firstOrNull;
-      if (photo == null) continue; // skip stale selections
+    for (final photo in photos) {
       if (photo.path.isNotEmpty) {
-        final file = File(photo.path);
-        if (await file.exists()) await file.delete();
+        try {
+          final file = File(photo.path);
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // File already deleted or inaccessible
+        }
       }
-      await db.deletePhoto(id);
+      await db.deletePhoto(photo.id);
     }
 
+    if (!mounted) return;
     setState(() => _selectedToDelete.clear());
     ref.invalidate(duplicatesProvider);
     ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
   }
 }
 
