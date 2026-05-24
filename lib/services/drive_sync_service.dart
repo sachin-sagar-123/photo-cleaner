@@ -43,7 +43,7 @@ class DriveSyncService {
       drive.DriveApi.driveScope, // full access — needed for delete
     ],
     serverClientId:
-        '1060137208853-l4k2u1b64db870at992i8k5nrp73p25f.apps.googleusercontent.com',
+        '1060137208853-gvkn07q7j2q1qh9qh7q978l3ue78p48r.apps.googleusercontent.com',
   );
 
   final _db = DatabaseService();
