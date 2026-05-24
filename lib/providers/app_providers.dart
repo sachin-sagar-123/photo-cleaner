@@ -11,43 +11,107 @@ final scannerServiceProvider = Provider((_) => ScannerService());
 final compressionServiceProvider = Provider((_) => CompressionService());
 final driveSyncServiceProvider = Provider((_) => DriveSyncService());
 final vaultServiceProvider = Provider((_) => DocumentVaultService());
+final scanPreferencesProvider = Provider((_) => ScanPreferencesService());
+final backgroundScanProvider = Provider((_) => BackgroundScanService());
 
 // ── Scan State ────────────────────────────────────────────────────────────
+
+/// Sentinel used by copyWith to distinguish "not passed" from "explicitly null".
+const _sentinel = Object();
 
 class ScanState {
   final bool isScanning;
   final ScanProgress? progress;
   final String? error;
+  final DateTime? lastScanTime;
+  final int? lastScanDurationMs;
+  final int? lastScanCount;
 
   const ScanState({
     this.isScanning = false,
     this.progress,
     this.error,
+    this.lastScanTime,
+    this.lastScanDurationMs,
+    this.lastScanCount,
   });
 
+  /// [error] and [progress] accept explicit null to clear the field.
+  /// Pass nothing (omit the parameter) to keep the current value.
   ScanState copyWith({
     bool? isScanning,
-    ScanProgress? progress,
-    String? error,
+    Object? progress = _sentinel,
+    Object? error = _sentinel,
+    Object? lastScanTime = _sentinel,
+    Object? lastScanDurationMs = _sentinel,
+    Object? lastScanCount = _sentinel,
   }) =>
       ScanState(
         isScanning: isScanning ?? this.isScanning,
-        progress: progress ?? this.progress,
-        error: error ?? this.error,
+        progress: progress == _sentinel
+            ? this.progress
+            : progress as ScanProgress?,
+        error: error == _sentinel ? this.error : error as String?,
+        lastScanTime: lastScanTime == _sentinel
+            ? this.lastScanTime
+            : lastScanTime as DateTime?,
+        lastScanDurationMs: lastScanDurationMs == _sentinel
+            ? this.lastScanDurationMs
+            : lastScanDurationMs as int?,
+        lastScanCount: lastScanCount == _sentinel
+            ? this.lastScanCount
+            : lastScanCount as int?,
       );
 }
 
 class ScanNotifier extends StateNotifier<ScanState> {
   final ScannerService _scanner;
+  final Ref _ref;
 
-  ScanNotifier(this._scanner) : super(const ScanState());
+  ScanNotifier(this._scanner, this._ref) : super(const ScanState()) {
+    // Load persisted scan metadata on creation
+    _loadScanMetadata();
+  }
 
-  Future<void> startScan() async {
-    state = state.copyWith(isScanning: true, error: null);
+  Future<void> _loadScanMetadata() async {
+    final prefs = _ref.read(scanPreferencesProvider);
+    final lastTime = await prefs.getLastScanTime();
+    final lastDuration = await prefs.getLastScanDuration();
+    final lastCount = await prefs.getLastScanCount();
+    state = state.copyWith(
+      lastScanTime: lastTime,
+      lastScanDurationMs: lastDuration,
+      lastScanCount: lastCount,
+    );
+  }
+
+  /// Start an incremental scan (only new photos).
+  Future<void> startScan() async => _runScan(forceFullRescan: false);
+
+  /// Force a full re-scan of all photos.
+  Future<void> startFullRescan() async => _runScan(forceFullRescan: true);
+
+  Future<void> _runScan({required bool forceFullRescan}) async {
+    state = state.copyWith(isScanning: true, error: null, progress: null);
     try {
-      await for (final progress in _scanner.scan()) {
+      await for (final progress
+          in _scanner.scan(forceFullRescan: forceFullRescan)) {
         state = state.copyWith(progress: progress);
       }
+      // Invalidate dependent providers so UI reflects newly scanned data
+      _ref.invalidate(storageStatsProvider);
+      _ref.invalidate(duplicatesProvider);
+      _ref.invalidate(unreviewedCountProvider);
+      _ref.invalidate(junkPhotosProvider);
+      _ref.invalidate(blurryPhotosProvider);
+      _ref.invalidate(backedUpCleanupProvider);
+
+      // Reload persisted metadata
+      await _loadScanMetadata();
+
+      // Clear background scan pending flag if set
+      final bgService = _ref.read(backgroundScanProvider);
+      await bgService.clearPendingScan();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     } finally {
@@ -58,7 +122,7 @@ class ScanNotifier extends StateNotifier<ScanState> {
 
 final scanStateProvider =
     StateNotifierProvider<ScanNotifier, ScanState>((ref) {
-  return ScanNotifier(ref.read(scannerServiceProvider));
+  return ScanNotifier(ref.read(scannerServiceProvider), ref);
 });
 
 // ── Photos ────────────────────────────────────────────────────────────────
@@ -74,6 +138,44 @@ final photosByCategoryProvider =
   return db.getPhotosByCategory(cat);
 });
 
+/// Count-only provider for category badges on dashboard — avoids loading
+/// all PhotoAsset objects just to show a number.
+final photosCountByCategoryProvider =
+    FutureProvider.family<int, PhotoCategory>((ref, cat) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getPhotosCountByCategory(cat);
+});
+
+final unreviewedPhotosProvider =
+    FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getUnreviewedPhotos();
+});
+
+/// Count-only provider for dashboard badge — avoids loading all unreviewed
+/// PhotoAsset objects just to show a number.
+final unreviewedCountProvider = FutureProvider<int>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getUnreviewedCount();
+});
+
+// ── Issue-filtered providers for cleanup screen ───────────────────────────
+
+final junkPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getPhotosByIssue(QualityIssue.junk);
+});
+
+final blurryPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getPhotosByIssue(QualityIssue.blurry);
+});
+
+final backedUpCleanupProvider = FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getBackedUpPhotosForCleanup();
+});
+
 // ── Duplicates ────────────────────────────────────────────────────────────
 
 final duplicatesProvider =
@@ -84,43 +186,25 @@ final duplicatesProvider =
 
 // ── Storage Stats ─────────────────────────────────────────────────────────
 
+/// Storage stats computed via SQL aggregates — no PhotoAsset objects loaded.
+/// For 16K photos this uses ~0 bytes of Dart heap vs ~50MB before.
 final storageStatsProvider = FutureProvider<StorageStats>((ref) async {
   final db = ref.read(databaseServiceProvider);
-  final photos = await db.getAllPhotos();
+  final agg = await db.getStorageAggregates();
 
-  int photoBytes = 0;
-  int duplicateBytes = 0;
-  int junkBytes = 0;
-  int backedUpBytes = 0;
-  int duplicateCount = 0;
-  int junkCount = 0;
-
-  for (final p in photos) {
-    photoBytes += p.sizeBytes;
-    if (p.isDuplicate) {
-      duplicateBytes += p.sizeBytes;
-      duplicateCount++;
-    }
-    if (p.issues.contains(QualityIssue.junk)) {
-      junkBytes += p.sizeBytes;
-      junkCount++;
-    }
-    if (p.isBackedUp) backedUpBytes += p.sizeBytes;
-  }
-
-  // Approximate device storage (64 GB default if unavailable)
-  const totalBytes = 64 * 1024 * 1024 * 1024;
+  // 64 GB as explicit literal to avoid int overflow from 64*1024*1024*1024
+  const totalBytes = 68719476736;
 
   return StorageStats(
     totalBytes: totalBytes,
-    usedBytes: photoBytes,
-    photoBytes: photoBytes,
-    duplicateBytes: duplicateBytes,
-    junkBytes: junkBytes,
-    backedUpBytes: backedUpBytes,
-    totalPhotos: photos.length,
-    duplicateCount: duplicateCount,
-    junkCount: junkCount,
+    usedBytes: agg['total_bytes']!,
+    photoBytes: agg['total_bytes']!,
+    duplicateBytes: agg['duplicate_bytes']!,
+    junkBytes: agg['junk_bytes']!,
+    backedUpBytes: agg['backed_up_bytes']!,
+    totalPhotos: agg['total_photos']!,
+    duplicateCount: agg['duplicate_count']!,
+    junkCount: agg['junk_count']!,
   );
 });
 
@@ -152,16 +236,19 @@ class DriveScanState {
     this.completed = false,
   });
 
+  /// [error] and [progress] accept explicit null to clear the field.
   DriveScanState copyWith({
     bool? isScanning,
-    DriveScanProgress? progress,
-    String? error,
+    Object? progress = _sentinel,
+    Object? error = _sentinel,
     bool? completed,
   }) =>
       DriveScanState(
         isScanning: isScanning ?? this.isScanning,
-        progress: progress ?? this.progress,
-        error: error ?? this.error,
+        progress: progress == _sentinel
+            ? this.progress
+            : progress as DriveScanProgress?,
+        error: error == _sentinel ? this.error : error as String?,
         completed: completed ?? this.completed,
       );
 }
@@ -174,7 +261,8 @@ class DriveScanNotifier extends StateNotifier<DriveScanState> {
       : super(const DriveScanState());
 
   Future<void> startScan() async {
-    state = state.copyWith(isScanning: true, error: null, completed: false);
+    state = state.copyWith(
+        isScanning: true, error: null, progress: null, completed: false);
     try {
       await for (final progress in _drive.scanDrive()) {
         state = state.copyWith(progress: progress);
@@ -230,5 +318,17 @@ final driveJunkProvider = FutureProvider<List<PhotoAsset>>((ref) async {
 
 final biometricEnabledProvider = StateProvider<bool>((_) => true);
 final autoScanProvider = StateProvider<bool>((_) => false);
+final backgroundScanEnabledProvider = StateProvider<bool>((_) => false);
+final scanFrequencyDaysProvider = StateProvider<int>((_) => 7);
 final defaultCompressionModeProvider =
     StateProvider<CompressionMode>((_) => CompressionMode.smart);
+
+/// Provider that loads persisted scan settings. Read once on app start.
+final scanSettingsInitProvider = FutureProvider<void>((ref) async {
+  final prefs = ref.read(scanPreferencesProvider);
+  ref.read(autoScanProvider.notifier).state = await prefs.getAutoScan();
+  ref.read(backgroundScanEnabledProvider.notifier).state =
+      await prefs.getBackgroundScan();
+  ref.read(scanFrequencyDaysProvider.notifier).state =
+      await prefs.getScanFrequencyDays();
+});

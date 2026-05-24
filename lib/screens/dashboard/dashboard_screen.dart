@@ -5,12 +5,57 @@ import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/storage_ring.dart';
 import '../../widgets/stat_card.dart';
+import '../browser/photo_browser_screen.dart';
+import '../drive/drive_screen.dart';
+import '../vault/vault_screen.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _autoScanTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Load persisted settings and wait for completion before reading them
+      final prefs = ref.read(scanPreferencesProvider);
+      final autoScan = await prefs.getAutoScan();
+      ref.read(autoScanProvider.notifier).state = autoScan;
+      ref.read(backgroundScanEnabledProvider.notifier).state =
+          await prefs.getBackgroundScan();
+      ref.read(scanFrequencyDaysProvider.notifier).state =
+          await prefs.getScanFrequencyDays();
+
+      if (!mounted) return;
+      final scanState = ref.read(scanStateProvider);
+      if (scanState.isScanning || _autoScanTriggered) return;
+
+      // Check if a background-triggered scan is pending
+      final bgService = ref.read(backgroundScanProvider);
+      final bgPending = await bgService.isBackgroundScanPending();
+      if (!mounted) return;
+      if (bgPending) {
+        _autoScanTriggered = true;
+        ref.read(scanStateProvider.notifier).startScan();
+        return;
+      }
+
+      // Auto-scan on open if enabled
+      if (autoScan) {
+        _autoScanTriggered = true;
+        ref.read(scanStateProvider.notifier).startScan();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final statsAsync = ref.watch(storageStatsProvider);
     final scanState = ref.watch(scanStateProvider);
 
@@ -19,8 +64,9 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('PhotoCleaner'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            icon: const Icon(Icons.tips_and_updates_outlined),
+            tooltip: 'Tips',
+            onPressed: () => _showTips(context),
           ),
         ],
       ),
@@ -34,6 +80,10 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               // Scan button / progress
               _ScanSection(scanState: scanState, ref: ref),
+              const SizedBox(height: 16),
+
+              // Review photos card
+              _ReviewCard(ref: ref),
               const SizedBox(height: 24),
 
               // Storage ring
@@ -44,6 +94,44 @@ class DashboardScreen extends ConsumerWidget {
                 error: (e, _) => Text('Error: $e',
                     style: const TextStyle(
                         color: AppTheme.error)),
+              ),
+              const SizedBox(height: 24),
+
+              // Quick access
+              const Text('Quick Access',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickAccessCard(
+                      icon: Icons.cloud_outlined,
+                      label: 'Drive',
+                      color: Colors.blue,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const DriveScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickAccessCard(
+                      icon: Icons.lock_outline,
+                      label: 'Vault',
+                      color: Colors.amber,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const VaultScreen()),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
@@ -58,6 +146,54 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showTips(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tips',
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            _tipRow(Icons.search, 'Scan photos to find junk, duplicates, and blurry images'),
+            _tipRow(Icons.swipe, 'Use Photo Review to quickly swipe through all photos'),
+            _tipRow(Icons.auto_awesome, 'Create collages from your best photos'),
+            _tipRow(Icons.lock_outline, 'Store important documents in the secure Vault'),
+            _tipRow(Icons.cloud_outlined, 'Connect Google Drive to find cloud duplicates'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tipRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.primary, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 13)),
+          ),
+        ],
       ),
     );
   }
@@ -94,48 +230,306 @@ class _ScanSection extends StatelessWidget {
                       color: AppTheme.primary),
                 ),
                 const SizedBox(width: 12),
-                const Text('Scanning photos...',
-                    style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  progress?.phase == 'loading'
+                      ? 'Loading photo library...'
+                      : progress?.phase == 'saving'
+                          ? 'Saving results...'
+                          : 'Scanning photos...',
+                  style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600),
+                ),
               ],
             ),
-            if (progress != null) ...[
+            if (progress != null && progress.phase == 'scanning') ...[
               const SizedBox(height: 12),
               LinearProgressIndicator(
                 value: progress.percent,
-                backgroundColor:
-                    AppTheme.surface,
+                backgroundColor: AppTheme.surface,
                 color: AppTheme.primary,
                 borderRadius: BorderRadius.circular(4),
               ),
               const SizedBox(height: 8),
               Text(
-                '${progress.scanned} / ${progress.total} — ${progress.currentFile}',
+                '${progress.scanned} / ${progress.total} new photos — ${progress.currentFile}',
                 style: const TextStyle(
                     color: AppTheme.textSecondary,
                     fontSize: 12),
                 overflow: TextOverflow.ellipsis,
               ),
+              if (progress.skipped > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${progress.skipped} already scanned (skipped)',
+                    style: TextStyle(
+                        color: AppTheme.secondary.withOpacity(0.8),
+                        fontSize: 11),
+                  ),
+                ),
             ],
           ],
         ),
       );
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () =>
-            ref.read(scanStateProvider.notifier).startScan(),
-        icon: const Icon(Icons.search_rounded),
-        label: const Text('Scan Photos'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w600),
+    final lastProgress = scanState.progress;
+    final scanDone = !scanState.isScanning && lastProgress != null;
+    final hasLastScan = scanState.lastScanTime != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Last scan info
+        if (hasLastScan && !scanDone && scanState.error == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.cardColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.history,
+                    color: AppTheme.textSecondary, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Last scan: ${_formatTimeAgo(scanState.lastScanTime!)}',
+                        style: const TextStyle(
+                            color: AppTheme.textPrimary, fontSize: 13),
+                      ),
+                      if (scanState.lastScanCount != null)
+                        Text(
+                          '${scanState.lastScanCount} photos'
+                          '${scanState.lastScanDurationMs != null ? ' in ${_formatDuration(scanState.lastScanDurationMs!)}' : ''}',
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 11),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        if (scanState.error != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppTheme.error.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppTheme.error, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    scanState.error!,
+                    style: const TextStyle(
+                        color: AppTheme.error, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (scanDone && scanState.error == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.secondary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppTheme.secondary.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline,
+                        color: AppTheme.secondary, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        lastProgress.total > 0
+                            ? 'Scanned ${lastProgress.total} new photos'
+                            : lastProgress.skipped > 0
+                                ? 'All ${lastProgress.skipped} photos already scanned'
+                                : 'No photos found on device',
+                        style: const TextStyle(
+                            color: AppTheme.secondary, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                if (lastProgress.skipped > 0 && lastProgress.total > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 30),
+                    child: Text(
+                      '${lastProgress.skipped} unchanged photos skipped',
+                      style: TextStyle(
+                          color: AppTheme.secondary.withOpacity(0.7),
+                          fontSize: 11),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+        // Scan buttons
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () =>
+                ref.read(scanStateProvider.notifier).startScan(),
+            icon: const Icon(Icons.search_rounded),
+            label: Text(scanState.error != null
+                ? 'Retry Scan'
+                : hasLastScan || scanDone
+                    ? 'Scan New Photos'
+                    : 'Scan Photos'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              textStyle: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
         ),
-      ),
+
+        // Full rescan option (only show if there's previous scan data)
+        if (hasLastScan || scanDone) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () =>
+                  ref.read(scanStateProvider.notifier).startFullRescan(),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Full Re-scan'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: AppTheme.textSecondary,
+                side: BorderSide(
+                    color: AppTheme.textSecondary.withOpacity(0.3)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _formatTimeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${time.day}/${time.month}/${time.year}';
+  }
+
+  static String _formatDuration(int ms) {
+    if (ms < 1000) return '${ms}ms';
+    final seconds = ms ~/ 1000;
+    if (seconds < 60) return '${seconds}s';
+    final minutes = seconds ~/ 60;
+    final remainSec = seconds % 60;
+    return '${minutes}m ${remainSec}s';
+  }
+}
+
+class _ReviewCard extends ConsumerWidget {
+  final WidgetRef ref;
+
+  const _ReviewCard({required this.ref});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Use count-only query — avoids loading all unreviewed PhotoAsset objects
+    final countAsync = ref.watch(unreviewedCountProvider);
+
+    return countAsync.when(
+      data: (count) {
+        if (count == 0) return const SizedBox.shrink();
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const PhotoBrowserScreen()),
+            );
+            ref.invalidate(unreviewedCountProvider);
+            ref.invalidate(storageStatsProvider);
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primary.withOpacity(0.15),
+                  AppTheme.secondary.withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppTheme.primary.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.swipe,
+                      color: AppTheme.primary, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$count photos to review',
+                        style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const Text(
+                        'Swipe to keep or delete',
+                        style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios,
+                    color: AppTheme.textSecondary, size: 16),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }
@@ -309,7 +703,8 @@ class _CategoryTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photosAsync = ref.watch(photosByCategoryProvider(category));
+    // Use count-only query — avoids loading all PhotoAsset objects per category
+    final photosAsync = ref.watch(photosCountByCategoryProvider(category));
 
     return GestureDetector(
       onTap: () {},
@@ -331,7 +726,7 @@ class _CategoryTile extends ConsumerWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w500)),
             photosAsync.when(
-              data: (photos) => Text('${photos.length}',
+              data: (count) => Text('$count',
                   style: const TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 11)),
@@ -348,3 +743,59 @@ class _CategoryTile extends ConsumerWidget {
     );
   }
 }
+
+class _QuickAccessCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickAccessCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.arrow_forward_ios,
+                color: AppTheme.textSecondary, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+

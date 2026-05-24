@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/photo_preview.dart';
 
 class DuplicatesScreen extends ConsumerStatefulWidget {
   const DuplicatesScreen({super.key});
@@ -128,22 +129,29 @@ class _DuplicatesScreenState
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     final db = ref.read(databaseServiceProvider);
-    final photos = await db.getAllPhotos();
+    // Fetch only the selected photos instead of all 16K
+    final photos = await db.getPhotosByIds(_selectedToDelete.toList());
 
-    for (final id in _selectedToDelete) {
-      final photo = photos.firstWhere((p) => p.id == id,
-          orElse: () => photos.first);
-      final file = File(photo.path);
-      if (await file.exists()) await file.delete();
-      await db.deletePhoto(id);
+    for (final photo in photos) {
+      if (photo.path.isNotEmpty) {
+        try {
+          final file = File(photo.path);
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // File already deleted or inaccessible
+        }
+      }
+      await db.deletePhoto(photo.id);
     }
 
+    if (!mounted) return;
     setState(() => _selectedToDelete.clear());
     ref.invalidate(duplicatesProvider);
     ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
   }
 }
 
@@ -267,7 +275,19 @@ class _DuplicateGroupCard extends StatelessWidget {
                       selectedIds.contains(asset.id);
 
                   return GestureDetector(
-                    onTap: isBest
+                    onTap: () async {
+                      final action = await PhotoPreview.show(
+                        context,
+                        asset: asset,
+                        isSelected: isSelected,
+                      );
+                      if (!isBest &&
+                          (action == 'select' ||
+                              action == 'deselect')) {
+                        onToggle(asset.id);
+                      }
+                    },
+                    onLongPress: isBest
                         ? null
                         : () => onToggle(asset.id),
                     child: Stack(

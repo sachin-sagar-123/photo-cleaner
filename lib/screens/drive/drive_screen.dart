@@ -143,10 +143,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen>
     if (!mounted) return;
     ref.read(driveSignedInProvider.notifier).state = ok;
     if (!ok) {
+      final error = drive.lastSignInError ?? 'Unknown error';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google Sign-In failed'),
+        SnackBar(
+          content: Text('Google Sign-In failed: $error'),
           backgroundColor: AppTheme.error,
+          duration: const Duration(seconds: 5),
         ),
       );
     }

@@ -11,6 +11,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final biometricEnabled = ref.watch(biometricEnabledProvider);
     final autoScan = ref.watch(autoScanProvider);
+    final backgroundScan = ref.watch(backgroundScanEnabledProvider);
+    final scanFrequency = ref.watch(scanFrequencyDaysProvider);
     final compressionMode =
         ref.watch(defaultCompressionModeProvider);
     final driveSignedIn = ref.watch(driveSignedInProvider);
@@ -35,12 +37,66 @@ class SettingsScreen extends ConsumerWidget {
           _ToggleTile(
             icon: Icons.autorenew,
             iconColor: Colors.green,
-            title: 'Auto Scan',
-            subtitle: 'Scan photos automatically on open',
+            title: 'Auto Scan on Open',
+            subtitle: 'Scan new photos when app opens',
             value: autoScan,
-            onChanged: (v) =>
-                ref.read(autoScanProvider.notifier).state = v,
+            onChanged: (v) async {
+                ref.read(autoScanProvider.notifier).state = v;
+                await ref.read(scanPreferencesProvider).setAutoScan(v);
+            },
           ),
+          _ToggleTile(
+            icon: Icons.schedule,
+            iconColor: Colors.blue,
+            title: 'Weekly Background Scan',
+            subtitle: 'Auto-scan even when app is closed',
+            value: backgroundScan,
+            onChanged: (v) async {
+              ref.read(backgroundScanEnabledProvider.notifier).state = v;
+              final bgService = ref.read(backgroundScanProvider);
+              if (v) {
+                await bgService.registerPeriodicScan(
+                    frequencyDays: scanFrequency);
+              } else {
+                await bgService.cancelPeriodicScan();
+              }
+            },
+          ),
+          if (backgroundScan)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text('Frequency:',
+                      style: TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 13)),
+                  const SizedBox(width: 12),
+                  ...[3, 7, 14].map((days) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text('${days}d'),
+                          selected: scanFrequency == days,
+                          onSelected: (_) async {
+                            ref.read(scanFrequencyDaysProvider.notifier)
+                                .state = days;
+                            final bgService =
+                                ref.read(backgroundScanProvider);
+                            await bgService.registerPeriodicScan(
+                                frequencyDays: days);
+                          },
+                          selectedColor:
+                              AppTheme.primary.withOpacity(0.2),
+                          labelStyle: TextStyle(
+                            color: scanFrequency == days
+                                ? AppTheme.primary
+                                : AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
 
           _SectionHeader('Compression'),
           ...CompressionMode.values.map(
@@ -157,10 +213,22 @@ class SettingsScreen extends ConsumerWidget {
 
     if (confirm == true) {
       final db = ref.read(databaseServiceProvider);
-      await db.close();
-      ref.invalidate(photosProvider);
+      await db.clearAll();
       ref.invalidate(storageStatsProvider);
+      ref.invalidate(duplicatesProvider);
       ref.invalidate(vaultDocumentsProvider);
+      ref.invalidate(unreviewedCountProvider);
+      ref.invalidate(junkPhotosProvider);
+      ref.invalidate(blurryPhotosProvider);
+      ref.invalidate(backedUpCleanupProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All data cleared'),
+            backgroundColor: AppTheme.secondary,
+          ),
+        );
+      }
     }
   }
 
@@ -174,9 +242,9 @@ class SettingsScreen extends ConsumerWidget {
         CompressionMode.lossless =>
           'No quality loss, strips metadata only',
         CompressionMode.smart =>
-          '75% JPEG quality, ~40–60% size reduction',
+          '82% JPEG quality, ~40–60% size reduction',
         CompressionMode.aggressive =>
-          '50% quality + resize, up to 90% reduction',
+          '60% quality + resize to 1920px, up to 90% reduction',
       };
 }
 

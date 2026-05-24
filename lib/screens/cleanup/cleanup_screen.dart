@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
+import '../../widgets/photo_preview.dart';
 
 class CleanupScreen extends ConsumerStatefulWidget {
   const CleanupScreen({super.key});
@@ -75,20 +76,18 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _PhotoList(
-                  filter: (p) =>
-                      p.issues.contains(QualityIssue.junk),
+                _FilteredPhotoList(
+                  provider: junkPhotosProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
-                _PhotoList(
-                  filter: (p) =>
-                      p.issues.contains(QualityIssue.blurry),
+                _FilteredPhotoList(
+                  provider: blurryPhotosProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
-                _PhotoList(
-                  filter: (p) => p.isBackedUp,
+                _FilteredPhotoList(
+                  provider: backedUpCleanupProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
@@ -133,21 +132,30 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     final db = ref.read(databaseServiceProvider);
-    for (final id in _selected) {
-      final photos = await db.getAllPhotos();
-      final photo =
-          photos.firstWhere((p) => p.id == id, orElse: () => photos.first);
-      final file = File(photo.path);
-      if (await file.exists()) await file.delete();
-      await db.deletePhoto(id);
+    // Fetch only the selected photos instead of all 16K
+    final photos = await db.getPhotosByIds(_selected.toList());
+    for (final photo in photos) {
+      if (photo.path.isNotEmpty) {
+        try {
+          final file = File(photo.path);
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // File already deleted or inaccessible
+        }
+      }
+      await db.deletePhoto(photo.id);
     }
 
+    if (!mounted) return;
     setState(() => _selected.clear());
-    ref.invalidate(photosProvider);
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(backedUpCleanupProvider);
     ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
   }
 
   Future<void> _compressSelected() async {
@@ -156,21 +164,45 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
 
     final db = ref.read(databaseServiceProvider);
     final compression = ref.read(compressionServiceProvider);
-    final photos = await db.getAllPhotos();
-    final toCompress =
-        photos.where((p) => _selected.contains(p.id)).toList();
+    // Fetch only the selected photos instead of all 16K
+    final toCompress = await db.getPhotosByIds(_selected.toList());
 
-    await compression.compressBatch(
+    final results = await compression.compressBatch(
       toCompress.map((p) => p.path).toList(),
       _compressionMode,
       onProgress: (done, total) {},
     );
 
+    // Replace originals with compressed versions
+    int totalSaved = 0;
+    for (final result in results) {
+      if (result.compressedBytes < result.originalBytes) {
+        try {
+          final compressedFile = File(result.compressedPath);
+          final originalFile = File(result.originalPath);
+          if (await compressedFile.exists() && await originalFile.exists()) {
+            await compressedFile.copy(result.originalPath);
+            await compressedFile.delete();
+            totalSaved += result.originalBytes - result.compressedBytes;
+          }
+        } catch (_) {
+          // Skip files that fail to replace
+        }
+      }
+    }
+
+    if (!mounted) return;
     setState(() => _compressing = false);
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(backedUpCleanupProvider);
+    ref.invalidate(storageStatsProvider);
     if (mounted) {
+      final savedMB = (totalSaved / (1024 * 1024)).toStringAsFixed(1);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Compressed ${toCompress.length} photos'),
+          content: Text(
+              'Compressed ${results.length} photos, saved $savedMB MB'),
           backgroundColor: AppTheme.secondary,
         ),
       );
@@ -244,24 +276,25 @@ class _CompressionBar extends StatelessWidget {
       };
 }
 
-class _PhotoList extends ConsumerWidget {
-  final bool Function(PhotoAsset) filter;
+/// Uses a pre-filtered provider instead of loading all photos and filtering
+/// client-side. For 16K photos this avoids ~50MB of unnecessary allocations.
+class _FilteredPhotoList extends ConsumerWidget {
+  final FutureProvider<List<PhotoAsset>> provider;
   final Set<String> selected;
   final ValueChanged<String> onToggle;
 
-  const _PhotoList({
-    required this.filter,
+  const _FilteredPhotoList({
+    required this.provider,
     required this.selected,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photosAsync = ref.watch(photosProvider);
+    final photosAsync = ref.watch(provider);
 
     return photosAsync.when(
-      data: (all) {
-        final photos = all.where(filter).toList();
+      data: (photos) {
         if (photos.isEmpty) {
           return const Center(
             child: Column(
@@ -285,11 +318,24 @@ class _PhotoList extends ConsumerWidget {
             mainAxisSpacing: 6,
           ),
           itemCount: photos.length,
-          itemBuilder: (_, i) => PhotoGridTile(
-            asset: photos[i],
-            selected: selected.contains(photos[i].id),
-            onTap: () => onToggle(photos[i].id),
-          ),
+          itemBuilder: (_, i) {
+            final photo = photos[i];
+            return PhotoGridTile(
+              asset: photo,
+              selected: selected.contains(photo.id),
+              onTap: () async {
+                final action = await PhotoPreview.show(
+                  context,
+                  asset: photo,
+                  isSelected: selected.contains(photo.id),
+                );
+                if (action == 'select' || action == 'deselect') {
+                  onToggle(photo.id);
+                }
+              },
+              onLongPress: () => onToggle(photo.id),
+            );
+          },
         );
       },
       loading: () =>
