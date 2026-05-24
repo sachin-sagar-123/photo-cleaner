@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/storage_ring.dart';
 import '../../widgets/stat_card.dart';
 import '../browser/photo_browser_screen.dart';
+import '../category/category_photos_screen.dart';
 import '../drive/drive_screen.dart';
 import '../vault/vault_screen.dart';
 
@@ -707,7 +708,22 @@ class _CategoryTile extends ConsumerWidget {
     final photosAsync = ref.watch(photosCountByCategoryProvider(category));
 
     return GestureDetector(
-      onTap: () {},
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CategoryPhotosScreen(
+              category: category,
+              label: label,
+              color: color,
+              icon: icon,
+            ),
+          ),
+        );
+        // Refresh counts after returning (user may have deleted photos)
+        ref.invalidate(photosCountByCategoryProvider(category));
+        ref.invalidate(storageStatsProvider);
+      },
       child: Container(
         decoration: BoxDecoration(
           color: AppTheme.cardColor,
