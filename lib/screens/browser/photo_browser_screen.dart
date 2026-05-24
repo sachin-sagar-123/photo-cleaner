@@ -291,9 +291,9 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                       });
                     },
                     onPanEnd: (d) {
-                      if (_dragX > 100) {
+                      if (_dragX > 60) {
                         _onSwipeRight();
-                      } else if (_dragX < -100) {
+                      } else if (_dragX < -60) {
                         _onSwipeLeft();
                       } else {
                         setState(() {
@@ -501,14 +501,16 @@ class _PhotoCard extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: photo.path.isNotEmpty
-            ? Image.file(
-                File(photo.path),
-                fit: BoxFit.contain,
-                cacheWidth: decodeWidth,
-                gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Icon(Icons.broken_image,
-                      color: AppTheme.textSecondary, size: 48),
+            ? SizedBox.expand(
+                child: Image.file(
+                  File(photo.path),
+                  fit: BoxFit.cover,
+                  cacheWidth: decodeWidth,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image,
+                        color: AppTheme.textSecondary, size: 48),
+                  ),
                 ),
               )
             : const Center(
