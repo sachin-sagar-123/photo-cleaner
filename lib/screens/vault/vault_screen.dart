@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:photo_manager/photo_manager.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
@@ -196,23 +198,51 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
   }
 
   Future<void> _showAddDocumentSheet(WidgetRef ref) async {
+    // First, pick a photo from the device
+    final selectedPath = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _PhotoPickerScreen()),
+    );
+    if (selectedPath == null || !mounted) return;
+
+    // Then show the metadata sheet
     await showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.cardColor,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _AddDocumentSheet(
+        imagePath: selectedPath,
         onAdd: (title, type, notes) async {
-          // In production, use image_picker here
-          // For now, show a placeholder
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(
-                      'Image picker integration required')),
+          try {
+            final vault = ref.read(vaultServiceProvider);
+            await vault.addDocument(
+              imagePath: selectedPath,
+              title: title.isEmpty ? 'Untitled Document' : title,
+              type: type,
+              notes: notes,
             );
+            ref.invalidate(vaultDocumentsProvider);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Document added to vault'),
+                  backgroundColor: AppTheme.secondary,
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to add: $e'),
+                  backgroundColor: AppTheme.error,
+                ),
+              );
+            }
           }
         },
       ),
@@ -326,10 +356,14 @@ class _DocumentTile extends StatelessWidget {
 }
 
 class _AddDocumentSheet extends StatefulWidget {
+  final String imagePath;
   final Future<void> Function(
       String title, DocumentType type, String? notes) onAdd;
 
-  const _AddDocumentSheet({required this.onAdd});
+  const _AddDocumentSheet({
+    required this.imagePath,
+    required this.onAdd,
+  });
 
   @override
   State<_AddDocumentSheet> createState() =>
@@ -367,6 +401,25 @@ class _AddDocumentSheetState
                   color: AppTheme.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          // Image preview
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(widget.imagePath),
+              height: 150,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                height: 150,
+                color: AppTheme.surface,
+                child: const Center(
+                  child: Icon(Icons.broken_image,
+                      color: AppTheme.textSecondary, size: 40),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _titleController,
@@ -433,4 +486,116 @@ class _AddDocumentSheetState
           borderSide: BorderSide.none,
         ),
       );
+}
+
+// ── Photo Picker for Vault ──────────────────────────────────────────────
+
+class _PhotoPickerScreen extends StatefulWidget {
+  const _PhotoPickerScreen();
+
+  @override
+  State<_PhotoPickerScreen> createState() => _PhotoPickerScreenState();
+}
+
+class _PhotoPickerScreenState extends State<_PhotoPickerScreen> {
+  List<AssetEntity> _assets = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPhotos();
+  }
+
+  Future<void> _loadPhotos() async {
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth && !permission.hasAccess) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    var albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      onlyAll: true,
+    );
+    if (albums.isEmpty) {
+      albums = await PhotoManager.getAssetPathList(type: RequestType.image);
+    }
+    if (albums.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    final assets = <AssetEntity>[];
+    final seen = <String>{};
+    for (final album in albums) {
+      final count = await album.assetCountAsync;
+      if (count == 0) continue;
+      final list = await album.getAssetListRange(start: 0, end: count);
+      for (final a in list) {
+        if (seen.add(a.id)) assets.add(a);
+      }
+    }
+
+    // Sort newest first
+    assets.sort((a, b) => (b.createDateTime).compareTo(a.createDateTime));
+
+    setState(() {
+      _assets = assets;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Select Photo'),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _assets.isEmpty
+              ? const Center(
+                  child: Text('No photos found',
+                      style: TextStyle(color: AppTheme.textSecondary)),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: _assets.length,
+                  itemBuilder: (context, i) {
+                    return FutureBuilder<Uint8List?>(
+                      future: _assets[i].thumbnailDataWithSize(
+                          const ThumbnailSize(200, 200)),
+                      builder: (context, snap) {
+                        if (!snap.hasData || snap.data == null) {
+                          return Container(color: AppTheme.cardColor);
+                        }
+                        return GestureDetector(
+                          onTap: () async {
+                            final file = await _assets[i].file;
+                            if (file != null && context.mounted) {
+                              Navigator.pop(context, file.path);
+                            }
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.memory(
+                              snap.data!,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+    );
+  }
 }

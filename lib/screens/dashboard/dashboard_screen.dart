@@ -9,11 +9,32 @@ import '../browser/photo_browser_screen.dart';
 import '../drive/drive_screen.dart';
 import '../vault/vault_screen.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _autoScanTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Trigger auto-scan on first launch if enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final autoScan = ref.read(autoScanProvider);
+      final scanState = ref.read(scanStateProvider);
+      if (autoScan && !scanState.isScanning && !_autoScanTriggered) {
+        _autoScanTriggered = true;
+        ref.read(scanStateProvider.notifier).startScan();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final statsAsync = ref.watch(storageStatsProvider);
     final scanState = ref.watch(scanStateProvider);
 
@@ -22,8 +43,9 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('PhotoCleaner'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            icon: const Icon(Icons.tips_and_updates_outlined),
+            tooltip: 'Tips',
+            onPressed: () => _showTips(context),
           ),
         ],
       ),
@@ -103,6 +125,54 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showTips(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tips',
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            _tipRow(Icons.search, 'Scan photos to find junk, duplicates, and blurry images'),
+            _tipRow(Icons.swipe, 'Use Photo Review to quickly swipe through all photos'),
+            _tipRow(Icons.auto_awesome, 'Create collages from your best photos'),
+            _tipRow(Icons.lock_outline, 'Store important documents in the secure Vault'),
+            _tipRow(Icons.cloud_outlined, 'Connect Google Drive to find cloud duplicates'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tipRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.primary, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 13)),
+          ),
+        ],
       ),
     );
   }
