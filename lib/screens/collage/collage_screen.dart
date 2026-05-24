@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:photo_manager/photo_manager.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../services/collage_service.dart';
@@ -23,6 +25,14 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
   bool _saving = false;
   late AnimationController _pulseController;
 
+  // Device gallery photos
+  List<AssetEntity> _devicePhotos = [];
+  bool _loadingPhotos = true;
+  // Cache: assetId -> file path
+  final Map<String, String> _pathCache = {};
+  // Cache: assetId -> thumbnail
+  final Map<String, Uint8List> _thumbCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +40,48 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+    _loadDevicePhotos();
+  }
+
+  Future<void> _loadDevicePhotos() async {
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth && !permission.hasAccess) {
+      setState(() => _loadingPhotos = false);
+      return;
+    }
+
+    var albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      onlyAll: true,
+    );
+    if (albums.isEmpty) {
+      albums = await PhotoManager.getAssetPathList(type: RequestType.image);
+    }
+
+    final assets = <AssetEntity>[];
+    final seen = <String>{};
+    for (final album in albums) {
+      final count = await album.assetCountAsync;
+      if (count == 0) continue;
+      final list = await album.getAssetListRange(start: 0, end: count);
+      for (final a in list) {
+        if (seen.add(a.id)) assets.add(a);
+      }
+    }
+    assets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+
+    setState(() {
+      _devicePhotos = assets;
+      _loadingPhotos = false;
+    });
+  }
+
+  Future<String?> _getPath(AssetEntity asset) async {
+    if (_pathCache.containsKey(asset.id)) return _pathCache[asset.id];
+    final file = await asset.file;
+    if (file == null) return null;
+    _pathCache[asset.id] = file.path;
+    return file.path;
   }
 
   @override
@@ -493,8 +545,6 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
   }
 
   Widget _buildPhotoSelector() {
-    final photosAsync = ref.watch(photosProvider);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -525,105 +575,111 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
         ),
         SizedBox(
           height: 80,
-          child: photosAsync.when(
-            data: (photos) {
-              final localPhotos =
-                  photos.where((p) => p.path.isNotEmpty).toList();
-              if (localPhotos.isEmpty) {
-                return const Center(
-                  child: Text('No photos found. Scan first.',
-                      style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 12)),
-                );
-              }
-              return ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: localPhotos.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: 6),
-                itemBuilder: (_, i) {
-                  final photo = localPhotos[i];
-                  final idx =
-                      _selectedPhotos.indexOf(photo.path);
-                  final isSelected = idx >= 0;
+          child: _loadingPhotos
+              ? const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : _devicePhotos.isEmpty
+                  ? const Center(
+                      child: Text(
+                          'No photos found. Grant photo access.',
+                          style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12)),
+                    )
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _devicePhotos.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: 6),
+                      itemBuilder: (_, i) {
+                        final asset = _devicePhotos[i];
+                        final path = _pathCache[asset.id];
+                        final idx = path != null
+                            ? _selectedPhotos.indexOf(path)
+                            : -1;
+                        final isSelected = idx >= 0;
 
-                  return GestureDetector(
-                    onTap: () => _togglePhoto(photo.path),
-                    child: Stack(
-                      children: [
-                        AnimatedContainer(
-                          duration:
-                              const Duration(milliseconds: 200),
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppTheme.primary
-                                  : Colors.transparent,
-                              width: 2.5,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(8),
-                            child: Image.file(
-                              File(photo.path),
-                              fit: BoxFit.cover,
-                              cacheWidth: 200,
-                              errorBuilder: (_, __, ___) =>
-                                  Container(
-                                color: AppTheme.cardColor,
-                                child: const Icon(
-                                    Icons.broken_image,
-                                    color:
-                                        AppTheme.textSecondary,
-                                    size: 20),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (isSelected)
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: const BoxDecoration(
-                                color: AppTheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${idx + 1}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
+                        return GestureDetector(
+                          onTap: () async {
+                            final p = await _getPath(asset);
+                            if (p != null) _togglePhoto(p);
+                          },
+                          child: Stack(
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(
+                                    milliseconds: 200),
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppTheme.primary
+                                        : Colors.transparent,
+                                    width: 2.5,
                                   ),
                                 ),
+                                child: ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(8),
+                                  child: _buildThumb(asset),
+                                ),
                               ),
-                            ),
+                              if (isSelected)
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration:
+                                        const BoxDecoration(
+                                      color: AppTheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${idx + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight:
+                                              FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              );
-            },
-            loading: () => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            error: (_, __) => const Center(
-                child: Text('Error loading photos',
-                    style: TextStyle(color: AppTheme.error))),
-          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThumb(AssetEntity asset) {
+    if (_thumbCache.containsKey(asset.id)) {
+      return Image.memory(_thumbCache[asset.id]!,
+          fit: BoxFit.cover, width: 72, height: 72);
+    }
+    return FutureBuilder<Uint8List?>(
+      future: asset
+          .thumbnailDataWithSize(const ThumbnailSize(200, 200)),
+      builder: (_, snap) {
+        if (snap.hasData && snap.data != null) {
+          _thumbCache[asset.id] = snap.data!;
+          return Image.memory(snap.data!,
+              fit: BoxFit.cover, width: 72, height: 72);
+        }
+        return Container(color: AppTheme.cardColor);
+      },
     );
   }
 
