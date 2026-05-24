@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'cleanup/cleanup_screen.dart';
 import 'duplicates/duplicates_screen.dart';
+import 'collage/collage_screen.dart';
 import 'drive/drive_screen.dart';
 import 'vault/vault_screen.dart';
 import 'settings/settings_screen.dart';
@@ -20,8 +21,7 @@ class _MainShellState extends State<MainShell> {
     DashboardScreen(),
     CleanupScreen(),
     DuplicatesScreen(),
-    DriveScreen(),
-    VaultScreen(),
+    CollageScreen(),
     SettingsScreen(),
   ];
 
@@ -40,7 +40,7 @@ class _MainShellState extends State<MainShell> {
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.cleaning_services_outlined),
@@ -53,14 +53,9 @@ class _MainShellState extends State<MainShell> {
             label: 'Duplicates',
           ),
           NavigationDestination(
-            icon: Icon(Icons.cloud_outlined),
-            selectedIcon: Icon(Icons.cloud),
-            label: 'Drive',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.lock_outline),
-            selectedIcon: Icon(Icons.lock),
-            label: 'Vault',
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome),
+            label: 'Collage',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

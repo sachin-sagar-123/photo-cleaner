@@ -6,6 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/storage_ring.dart';
 import '../../widgets/stat_card.dart';
 import '../browser/photo_browser_screen.dart';
+import '../drive/drive_screen.dart';
+import '../vault/vault_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -49,6 +51,44 @@ class DashboardScreen extends ConsumerWidget {
                 error: (e, _) => Text('Error: $e',
                     style: const TextStyle(
                         color: AppTheme.error)),
+              ),
+              const SizedBox(height: 24),
+
+              // Quick access
+              const Text('Quick Access',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickAccessCard(
+                      icon: Icons.cloud_outlined,
+                      label: 'Drive',
+                      color: Colors.blue,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const DriveScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickAccessCard(
+                      icon: Icons.lock_outline,
+                      label: 'Vault',
+                      color: Colors.amber,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const VaultScreen()),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
@@ -497,3 +537,4 @@ class _CategoryTile extends ConsumerWidget {
     );
   }
 }
+

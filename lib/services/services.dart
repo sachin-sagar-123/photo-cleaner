@@ -6,3 +6,4 @@ export 'compression_service.dart';
 export 'drive_sync_service.dart';
 export 'document_vault_service.dart';
 export 'scanner_service.dart';
+export 'collage_service.dart';
