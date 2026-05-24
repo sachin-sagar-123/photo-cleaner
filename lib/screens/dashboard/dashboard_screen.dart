@@ -5,6 +5,7 @@ import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/storage_ring.dart';
 import '../../widgets/stat_card.dart';
+import '../browser/photo_browser_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -34,6 +35,10 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               // Scan button / progress
               _ScanSection(scanState: scanState, ref: ref),
+              const SizedBox(height: 16),
+
+              // Review photos card
+              _ReviewCard(ref: ref),
               const SizedBox(height: 24),
 
               // Storage ring
@@ -198,6 +203,88 @@ class _ScanSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReviewCard extends ConsumerWidget {
+  final WidgetRef ref;
+
+  const _ReviewCard({required this.ref});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreviewedAsync = ref.watch(unreviewedPhotosProvider);
+
+    return unreviewedAsync.when(
+      data: (photos) {
+        if (photos.isEmpty) return const SizedBox.shrink();
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const PhotoBrowserScreen()),
+            );
+            ref.invalidate(unreviewedPhotosProvider);
+            ref.invalidate(photosProvider);
+            ref.invalidate(storageStatsProvider);
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primary.withOpacity(0.15),
+                  AppTheme.secondary.withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppTheme.primary.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.swipe,
+                      color: AppTheme.primary, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${photos.length} photos to review',
+                        style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const Text(
+                        'Swipe to keep or delete',
+                        style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios,
+                    color: AppTheme.textSecondary, size: 16),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

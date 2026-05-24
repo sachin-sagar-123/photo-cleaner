@@ -18,7 +18,7 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'photo_cleaner.db'),
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -31,6 +31,10 @@ class DatabaseService {
       await db.execute('ALTER TABLE photo_assets ADD COLUMN drive_md5 TEXT');
       await db.execute(
           'ALTER TABLE photo_assets ADD COLUMN is_drive_only INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      await db.execute(
+          'ALTER TABLE photo_assets ADD COLUMN is_reviewed INTEGER NOT NULL DEFAULT 0');
     }
   }
 
@@ -50,7 +54,8 @@ class DatabaseService {
         d_hash TEXT,
         drive_file_id TEXT,
         drive_md5 TEXT,
-        is_drive_only INTEGER NOT NULL DEFAULT 0
+        is_drive_only INTEGER NOT NULL DEFAULT 0,
+        is_reviewed INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -124,6 +129,41 @@ class DatabaseService {
     final rows = await database.query(
       'photo_assets',
       where: 'is_backed_up = 1',
+    );
+    return rows.map(PhotoAsset.fromMap).toList();
+  }
+
+  Future<void> markReviewed(String id, {bool reviewed = true}) async {
+    final database = await db;
+    await database.update(
+      'photo_assets',
+      {'is_reviewed': reviewed ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markAllReviewed(List<String> ids,
+      {bool reviewed = true}) async {
+    final database = await db;
+    final batch = database.batch();
+    for (final id in ids) {
+      batch.update(
+        'photo_assets',
+        {'is_reviewed': reviewed ? 1 : 0},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<PhotoAsset>> getUnreviewedPhotos() async {
+    final database = await db;
+    final rows = await database.query(
+      'photo_assets',
+      where: 'is_reviewed = 0 AND is_drive_only = 0',
+      orderBy: 'created_at DESC',
     );
     return rows.map(PhotoAsset.fromMap).toList();
   }

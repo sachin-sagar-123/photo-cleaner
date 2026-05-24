@@ -24,6 +24,9 @@ class PhotoAsset {
   final String? driveMd5;      // MD5 checksum from Drive metadata
   final bool isDriveOnly;      // true = exists on Drive but not locally
 
+  // Review state — user marked this photo as OK, skip in future scans
+  final bool isReviewed;
+
   const PhotoAsset({
     required this.id,
     required this.path,
@@ -40,6 +43,7 @@ class PhotoAsset {
     this.driveFileId,
     this.driveMd5,
     this.isDriveOnly = false,
+    this.isReviewed = false,
   });
 
   bool get hasIssues => issues.isNotEmpty;
@@ -59,6 +63,7 @@ class PhotoAsset {
     String? driveFileId,
     String? driveMd5,
     bool? isDriveOnly,
+    bool? isReviewed,
   }) {
     return PhotoAsset(
       id: id,
@@ -76,6 +81,7 @@ class PhotoAsset {
       driveFileId: driveFileId ?? this.driveFileId,
       driveMd5: driveMd5 ?? this.driveMd5,
       isDriveOnly: isDriveOnly ?? this.isDriveOnly,
+      isReviewed: isReviewed ?? this.isReviewed,
     );
   }
 
@@ -94,6 +100,7 @@ class PhotoAsset {
         'drive_file_id': driveFileId,
         'drive_md5': driveMd5,
         'is_drive_only': isDriveOnly ? 1 : 0,
+        'is_reviewed': isReviewed ? 1 : 0,
       };
 
   factory PhotoAsset.fromMap(Map<String, dynamic> map) => PhotoAsset(
@@ -117,5 +124,6 @@ class PhotoAsset {
         driveFileId: map['drive_file_id'] as String?,
         driveMd5: map['drive_md5'] as String?,
         isDriveOnly: ((map['is_drive_only'] as int?) ?? 0) == 1,
+        isReviewed: ((map['is_reviewed'] as int?) ?? 0) == 1,
       );
 }

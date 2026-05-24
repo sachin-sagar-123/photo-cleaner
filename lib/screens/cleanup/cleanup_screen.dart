@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
+import '../../widgets/photo_preview.dart';
 
 class CleanupScreen extends ConsumerStatefulWidget {
   const CleanupScreen({super.key});
@@ -77,12 +78,14 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
               children: [
                 _PhotoList(
                   filter: (p) =>
+                      !p.isReviewed &&
                       p.issues.contains(QualityIssue.junk),
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
                 _PhotoList(
                   filter: (p) =>
+                      !p.isReviewed &&
                       p.issues.contains(QualityIssue.blurry),
                   selected: _selected,
                   onToggle: _toggleSelection,
@@ -309,11 +312,24 @@ class _PhotoList extends ConsumerWidget {
             mainAxisSpacing: 6,
           ),
           itemCount: photos.length,
-          itemBuilder: (_, i) => PhotoGridTile(
-            asset: photos[i],
-            selected: selected.contains(photos[i].id),
-            onTap: () => onToggle(photos[i].id),
-          ),
+          itemBuilder: (_, i) {
+            final photo = photos[i];
+            return PhotoGridTile(
+              asset: photo,
+              selected: selected.contains(photo.id),
+              onTap: () async {
+                final action = await PhotoPreview.show(
+                  context,
+                  asset: photo,
+                  isSelected: selected.contains(photo.id),
+                );
+                if (action == 'select' || action == 'deselect') {
+                  onToggle(photo.id);
+                }
+              },
+              onLongPress: () => onToggle(photo.id),
+            );
+          },
         );
       },
       loading: () =>

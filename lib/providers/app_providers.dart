@@ -60,6 +60,7 @@ class ScanNotifier extends StateNotifier<ScanState> {
       _ref.invalidate(photosProvider);
       _ref.invalidate(storageStatsProvider);
       _ref.invalidate(duplicatesProvider);
+      _ref.invalidate(unreviewedPhotosProvider);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     } finally {
@@ -84,6 +85,12 @@ final photosByCategoryProvider =
     FutureProvider.family<List<PhotoAsset>, PhotoCategory>((ref, cat) async {
   final db = ref.read(databaseServiceProvider);
   return db.getPhotosByCategory(cat);
+});
+
+final unreviewedPhotosProvider =
+    FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getUnreviewedPhotos();
 });
 
 // ── Duplicates ────────────────────────────────────────────────────────────

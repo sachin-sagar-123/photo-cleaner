@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/photo_preview.dart';
 
 class DuplicatesScreen extends ConsumerStatefulWidget {
   const DuplicatesScreen({super.key});
@@ -269,7 +270,19 @@ class _DuplicateGroupCard extends StatelessWidget {
                       selectedIds.contains(asset.id);
 
                   return GestureDetector(
-                    onTap: isBest
+                    onTap: () async {
+                      final action = await PhotoPreview.show(
+                        context,
+                        asset: asset,
+                        isSelected: isSelected,
+                      );
+                      if (!isBest &&
+                          (action == 'select' ||
+                              action == 'deselect')) {
+                        onToggle(asset.id);
+                      }
+                    },
+                    onLongPress: isBest
                         ? null
                         : () => onToggle(asset.id),
                     child: Stack(
