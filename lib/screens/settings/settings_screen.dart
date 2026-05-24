@@ -152,6 +152,27 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _toggleDrive(ref, driveSignedIn),
           ),
 
+          _SectionHeader('Gemini AI'),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome, color: AppTheme.secondary),
+            title: const Text('API Key',
+                style: TextStyle(color: AppTheme.textPrimary)),
+            subtitle: Text(
+              ref.watch(geminiServiceProvider).isConfigured
+                  ? 'Configured'
+                  : 'Not set — tap to add',
+              style: TextStyle(
+                color: ref.watch(geminiServiceProvider).isConfigured
+                    ? AppTheme.secondary
+                    : AppTheme.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textSecondary),
+            onTap: () => _showGeminiKeyDialog(context, ref),
+          ),
+
           _SectionHeader('About'),
           const ListTile(
             leading: Icon(Icons.info_outline,
@@ -169,6 +190,54 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Clear All Data',
                 style: TextStyle(color: AppTheme.error)),
             onTap: () => _confirmClearData(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGeminiKeyDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardColor,
+        title: const Text('Gemini API Key',
+            style: TextStyle(color: AppTheme.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Get a free API key at ai.google.dev\n'
+              'Used for photo captions, categorization, and AI chat.',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: AppTheme.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'AIza...',
+                hintStyle: TextStyle(color: AppTheme.textSecondary),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final key = controller.text.trim();
+              if (key.isNotEmpty) {
+                ref.read(geminiServiceProvider).configure(key);
+                ref.read(geminiApiKeyProvider.notifier).state = key;
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

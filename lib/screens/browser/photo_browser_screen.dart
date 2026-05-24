@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../services/services.dart';
 import '../../theme/app_theme.dart';
+import '../ai/ai_chat_screen.dart';
 import '../editor/photo_editor_screen.dart';
 
 /// Smart photo browser — swipe through all unreviewed photos.
@@ -439,6 +440,21 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                       imagePath: photo.path,
                       fileName: photo.name,
                     );
+                  }
+                },
+              ),
+              // Ask AI
+              _ActionButton(
+                icon: Icons.auto_awesome,
+                color: AppTheme.secondary,
+                label: 'AI',
+                onTap: () {
+                  if (photo.path.isNotEmpty) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => AIChatScreen(
+                        initialImagePath: photo.path,
+                      ),
+                    ));
                   }
                 },
               ),

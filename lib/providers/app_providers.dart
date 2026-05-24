@@ -14,6 +14,8 @@ final vaultServiceProvider = Provider((_) => DocumentVaultService());
 final scanPreferencesProvider = Provider((_) => ScanPreferencesService());
 final backgroundScanProvider = Provider((_) => BackgroundScanService());
 final importantServiceProvider = Provider((_) => ImportantService());
+final geminiServiceProvider = Provider((_) => GeminiService());
+final geminiApiKeyProvider = StateProvider<String?>((_) => null);
 
 final importantPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
   final db = ref.read(databaseServiceProvider);

@@ -212,6 +212,23 @@ class PhotoPreview extends StatelessWidget {
                       ),
                     ),
 
+                  // Ask AI — analyze with Gemini
+                  if (asset.path.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        onPressed: () =>
+                            Navigator.pop(context, 'ask_ai'),
+                        icon: const Icon(Icons.auto_awesome,
+                            color: AppTheme.secondary, size: 24),
+                        tooltip: 'Ask AI',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              AppTheme.secondary.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+
                   // Mark Important — rescue from junk/blurry
                   if (asset.issues.contains(QualityIssue.junk) ||
                       asset.issues.contains(QualityIssue.blurry))

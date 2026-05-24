@@ -47,6 +47,9 @@ dependencies:
   # Background work
   workmanager: ^0.5.2
 
+  # Google Gemini AI
+  google_generative_ai: ^0.4.6
+
   # Utilities
   intl: ^0.19.0
   uuid: ^4.4.2

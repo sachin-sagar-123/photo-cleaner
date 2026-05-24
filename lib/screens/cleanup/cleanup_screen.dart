@@ -7,6 +7,7 @@ import '../../services/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
+import '../ai/ai_chat_screen.dart';
 import '../editor/photo_editor_screen.dart';
 
 class CleanupScreen extends ConsumerStatefulWidget {
@@ -381,6 +382,14 @@ class _FilteredPhotoList extends ConsumerWidget {
                     imagePath: photo.path,
                     fileName: photo.name,
                   );
+                } else if (action == 'ask_ai') {
+                  if (context.mounted) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => AIChatScreen(
+                        initialImagePath: photo.path,
+                      ),
+                    ));
+                  }
                 }
               },
               onLongPress: () => onToggle(photo.id),

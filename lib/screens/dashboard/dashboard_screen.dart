@@ -9,6 +9,7 @@ import '../browser/photo_browser_screen.dart';
 import '../category/category_photos_screen.dart';
 import '../drive/drive_screen.dart';
 import '../important/important_photos_screen.dart';
+import '../ai/ai_chat_screen.dart';
 import '../vault/vault_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -71,6 +72,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () => _showTips(context),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AIChatScreen())),
+        backgroundColor: AppTheme.primary,
+        child: const Icon(Icons.auto_awesome, color: Colors.white),
       ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(storageStatsProvider.future),
