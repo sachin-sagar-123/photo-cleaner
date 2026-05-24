@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:open_filex/open_filex.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
@@ -384,12 +385,15 @@ class _FilteredPhotoList extends ConsumerWidget {
                     fileName: photo.name,
                   );
                 } else if (action == 'ask_ai') {
-                  if (context.mounted) {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => AIChatScreen(
-                        initialImagePath: photo.path,
-                      ),
-                    ));
+                  if (!context.mounted) return;
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => AIChatScreen(
+                      initialImagePath: photo.path,
+                    ),
+                  ));
+                } else if (action == 'open_original') {
+                  if (photo.path.isNotEmpty) {
+                    await OpenFilex.open(photo.path);
                   }
                 }
               },

@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:open_filex/open_filex.dart';
 import '../../providers/app_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
+import '../ai/ai_chat_screen.dart';
 import '../editor/photo_editor_screen.dart';
 
 class ImportantPhotosScreen extends ConsumerStatefulWidget {
@@ -283,13 +285,36 @@ class _ImportantPhotosScreenState
                           asset: photo,
                           isSelected: false,
                         );
-                        if (action == 'edit' && photo.path.isNotEmpty) {
-                          if (!context.mounted) return;
-                          await PhotoEditorScreen.open(
-                            context,
-                            imagePath: photo.path,
-                            fileName: photo.name,
-                          );
+                        if (action == null || !context.mounted) return;
+                        switch (action) {
+                          case 'edit':
+                            if (photo.path.isNotEmpty) {
+                              await PhotoEditorScreen.open(
+                                context,
+                                imagePath: photo.path,
+                                fileName: photo.name,
+                              );
+                            }
+                          case 'ask_ai':
+                            if (!context.mounted) return;
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => AIChatScreen(
+                                initialImagePath: photo.path,
+                              ),
+                            ));
+                          case 'unmark_important':
+                            final db = ref.read(databaseServiceProvider);
+                            await db.markImportant(photo.id, important: false);
+                            ref.invalidate(importantPhotosProvider);
+                            ref.invalidate(importantCountProvider);
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Removed from important')),
+                            );
+                          case 'open_original':
+                            if (photo.path.isNotEmpty) {
+                              await OpenFilex.open(photo.path);
+                            }
                         }
                       },
                       onLongPress: () => _toggleSelection(photo.id),

@@ -63,6 +63,19 @@ class PhotoGridTile extends StatelessWidget {
                     color: Colors.white, size: 28),
               ),
             ),
+          if (asset.isImportant)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.star, size: 12, color: Colors.white),
+              ),
+            ),
           if (asset.isBackedUp)
             Positioned(
               bottom: 4,

@@ -31,6 +31,7 @@ dependencies:
   # File operations
   permission_handler: ^11.3.1
   share_plus: ^10.0.0
+  open_filex: ^4.5.0
 
   # PDF export
   pdf: ^3.11.1
