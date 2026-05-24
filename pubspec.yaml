@@ -41,6 +41,9 @@ dependencies:
   googleapis: ^13.2.0
   http: ^1.2.1
 
+  # Background work
+  workmanager: ^0.5.2
+
   # Utilities
   intl: ^0.19.0
   uuid: ^4.4.2

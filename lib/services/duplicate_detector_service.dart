@@ -235,6 +235,55 @@ class DuplicateDetectorService {
   static int hammingDistancePublic(String a, String b) =>
       _hammingDistance(a, b);
 
+  // ── Pre-decoded image variants for batch processing ─────────────────────
+  // These skip the decode step when the caller already has an img.Image.
+
+  /// Compute pHash from a pre-decoded image.
+  static String? computePHashFromImage(img.Image image) {
+    final resized = img.copyResize(image, width: 32, height: 32);
+    final gray = img.grayscale(resized);
+
+    final pixels = List.generate(
+      32,
+      (y) => List.generate(
+          32, (x) => img.getLuminance(gray.getPixel(x, y)).toDouble()),
+    );
+
+    final dct = _dct2d(pixels);
+
+    double sum = 0;
+    final flat = <double>[];
+    for (int y = 0; y < _pHashSize; y++) {
+      for (int x = 0; x < _pHashSize; x++) {
+        if (x == 0 && y == 0) continue;
+        flat.add(dct[y][x]);
+        sum += dct[y][x];
+      }
+    }
+    if (flat.isEmpty) return null;
+    final mean = sum / flat.length;
+
+    final bits = flat.map((v) => v >= mean ? '1' : '0').join();
+    return _bitsToHex(bits);
+  }
+
+  /// Compute dHash from a pre-decoded image.
+  static String? computeDHashFromImage(img.Image image) {
+    final resized =
+        img.copyResize(image, width: _dHashCols, height: _dHashRows);
+    final gray = img.grayscale(resized);
+
+    final bits = StringBuffer();
+    for (int y = 0; y < _dHashRows; y++) {
+      for (int x = 0; x < _dHashCols - 1; x++) {
+        final left = img.getLuminance(gray.getPixel(x, y));
+        final right = img.getLuminance(gray.getPixel(x + 1, y));
+        bits.write(left < right ? '1' : '0');
+      }
+    }
+    return _bitsToHex(bits.toString());
+  }
+
   // ── Hash utilities ────────────────────────────────────────────────────────
 
   /// Counts differing bits between two hex strings.

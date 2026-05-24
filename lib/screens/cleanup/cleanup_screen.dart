@@ -76,22 +76,18 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _PhotoList(
-                  filter: (p) =>
-                      !p.isReviewed &&
-                      p.issues.contains(QualityIssue.junk),
+                _FilteredPhotoList(
+                  provider: junkPhotosProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
-                _PhotoList(
-                  filter: (p) =>
-                      !p.isReviewed &&
-                      p.issues.contains(QualityIssue.blurry),
+                _FilteredPhotoList(
+                  provider: blurryPhotosProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
-                _PhotoList(
-                  filter: (p) => p.isBackedUp,
+                _FilteredPhotoList(
+                  provider: backedUpCleanupProvider,
                   selected: _selected,
                   onToggle: _toggleSelection,
                 ),
@@ -136,23 +132,30 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     final db = ref.read(databaseServiceProvider);
-    final photos = await db.getAllPhotos();
-    for (final id in _selected) {
-      final photo = photos.where((p) => p.id == id).firstOrNull;
-      if (photo == null) continue; // skip stale selections
+    // Fetch only the selected photos instead of all 16K
+    final photos = await db.getPhotosByIds(_selected.toList());
+    for (final photo in photos) {
       if (photo.path.isNotEmpty) {
-        final file = File(photo.path);
-        if (await file.exists()) await file.delete();
+        try {
+          final file = File(photo.path);
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // File already deleted or inaccessible
+        }
       }
-      await db.deletePhoto(id);
+      await db.deletePhoto(photo.id);
     }
 
+    if (!mounted) return;
     setState(() => _selected.clear());
-    ref.invalidate(photosProvider);
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(backedUpCleanupProvider);
     ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
   }
 
   Future<void> _compressSelected() async {
@@ -161,9 +164,8 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
 
     final db = ref.read(databaseServiceProvider);
     final compression = ref.read(compressionServiceProvider);
-    final photos = await db.getAllPhotos();
-    final toCompress =
-        photos.where((p) => _selected.contains(p.id)).toList();
+    // Fetch only the selected photos instead of all 16K
+    final toCompress = await db.getPhotosByIds(_selected.toList());
 
     final results = await compression.compressBatch(
       toCompress.map((p) => p.path).toList(),
@@ -189,8 +191,11 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
       }
     }
 
+    if (!mounted) return;
     setState(() => _compressing = false);
-    ref.invalidate(photosProvider);
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(backedUpCleanupProvider);
     ref.invalidate(storageStatsProvider);
     if (mounted) {
       final savedMB = (totalSaved / (1024 * 1024)).toStringAsFixed(1);
@@ -271,24 +276,25 @@ class _CompressionBar extends StatelessWidget {
       };
 }
 
-class _PhotoList extends ConsumerWidget {
-  final bool Function(PhotoAsset) filter;
+/// Uses a pre-filtered provider instead of loading all photos and filtering
+/// client-side. For 16K photos this avoids ~50MB of unnecessary allocations.
+class _FilteredPhotoList extends ConsumerWidget {
+  final FutureProvider<List<PhotoAsset>> provider;
   final Set<String> selected;
   final ValueChanged<String> onToggle;
 
-  const _PhotoList({
-    required this.filter,
+  const _FilteredPhotoList({
+    required this.provider,
     required this.selected,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photosAsync = ref.watch(photosProvider);
+    final photosAsync = ref.watch(provider);
 
     return photosAsync.when(
-      data: (all) {
-        final photos = all.where(filter).toList();
+      data: (photos) {
         if (photos.isEmpty) {
           return const Center(
             child: Column(

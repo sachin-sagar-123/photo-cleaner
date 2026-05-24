@@ -124,6 +124,9 @@ class PhotoPreview extends StatelessWidget {
                       ? Image.file(
                           File(asset.path),
                           fit: BoxFit.contain,
+                          // Decode at 2× screen width for crisp pinch-zoom
+                          // without loading full 12MP into memory.
+                          cacheWidth: (MediaQuery.of(context).size.width * 2).toInt(),
                           errorBuilder: (_, __, ___) =>
                               const Icon(Icons.broken_image,
                                   color: Colors.white54, size: 64),

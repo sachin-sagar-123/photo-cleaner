@@ -3,8 +3,6 @@ import 'dashboard/dashboard_screen.dart';
 import 'cleanup/cleanup_screen.dart';
 import 'duplicates/duplicates_screen.dart';
 import 'collage/collage_screen.dart';
-import 'drive/drive_screen.dart';
-import 'vault/vault_screen.dart';
 import 'settings/settings_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -17,21 +15,24 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  static const _screens = [
-    DashboardScreen(),
-    CleanupScreen(),
-    DuplicatesScreen(),
-    CollageScreen(),
-    SettingsScreen(),
-  ];
+  /// Build only the active screen. Previous screens are disposed,
+  /// freeing their widget trees, image caches, and provider subscriptions.
+  /// IndexedStack kept all 5 screens alive (~30-50MB wasted).
+  Widget _buildScreen(int index) {
+    return switch (index) {
+      0 => const DashboardScreen(),
+      1 => const CleanupScreen(),
+      2 => const DuplicatesScreen(),
+      3 => const CollageScreen(),
+      4 => const SettingsScreen(),
+      _ => const DashboardScreen(),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: _buildScreen(_currentIndex),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) =>
