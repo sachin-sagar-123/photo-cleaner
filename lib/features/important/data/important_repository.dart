@@ -44,13 +44,25 @@ class ImportantRepository {
 
   Future<Result<void>> markImportant(String id, String sourcePath) async {
     try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) {
+        return Failure(StorageException('Source file not found: $sourcePath'));
+      }
+
       // Copy file to Important folder
       final importantDir = Directory('/storage/emulated/0/DCIM/PhotoCleaner Important');
       if (!await importantDir.exists()) {
         await importantDir.create(recursive: true);
       }
-      final sourceFile = File(sourcePath);
-      final destPath = '${importantDir.path}/${sourceFile.uri.pathSegments.last}';
+
+      // Use timestamp suffix to avoid filename collisions
+      final baseName = sourceFile.uri.pathSegments.last;
+      final ext = baseName.contains('.') ? '.${baseName.split('.').last}' : '';
+      final nameWithoutExt = baseName.contains('.')
+          ? baseName.substring(0, baseName.lastIndexOf('.'))
+          : baseName;
+      final destName = '${nameWithoutExt}_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final destPath = '${importantDir.path}/$destName';
       await sourceFile.copy(destPath);
 
       await _dao.markImportant(id);

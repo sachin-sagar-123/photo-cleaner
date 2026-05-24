@@ -24,7 +24,7 @@ class ScanSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,7 +59,7 @@ class ScanSection extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '${progress.skipped} already scanned (skipped)',
-                  style: TextStyle(color: AppTheme.secondary.withOpacity(0.8), fontSize: 11),
+                  style: TextStyle(color: AppTheme.secondary.withValues(alpha: 0.8), fontSize: 11),
                 ),
               ),
           ],
@@ -79,7 +79,7 @@ class ScanSection extends StatelessWidget {
         if (hasLastScan && !scanDone && scanState.error == null)
           _lastScanInfo(),
         if (scanState.error != null) _errorInfo(),
-        if (scanDone && scanState.error == null) _completedInfo(lastProgress!),
+        if (scanDone && scanState.error == null) _completedInfo(lastProgress),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -104,7 +104,7 @@ class ScanSection extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 foregroundColor: AppTheme.textSecondary,
-                side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.3)),
+                side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                 textStyle: const TextStyle(fontSize: 13),
               ),
             ),
@@ -144,9 +144,9 @@ class ScanSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.error.withOpacity(0.1),
+        color: AppTheme.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
@@ -162,9 +162,9 @@ class ScanSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.secondary.withOpacity(0.1),
+        color: AppTheme.secondary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.secondary.withOpacity(0.3)),
+        border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +183,7 @@ class ScanSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 30),
               child: Text('${progress.skipped} unchanged photos skipped',
-                  style: TextStyle(color: AppTheme.secondary.withOpacity(0.7), fontSize: 11)),
+                  style: TextStyle(color: AppTheme.secondary.withValues(alpha: 0.7), fontSize: 11)),
             ),
         ],
       ),

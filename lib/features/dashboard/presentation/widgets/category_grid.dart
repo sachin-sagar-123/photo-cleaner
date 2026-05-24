@@ -59,7 +59,7 @@ class _CategoryTile extends ConsumerWidget {
         decoration: BoxDecoration(
           color: AppTheme.cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

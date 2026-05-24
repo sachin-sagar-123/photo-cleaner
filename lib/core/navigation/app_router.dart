@@ -36,16 +36,9 @@ abstract class AppRoutes {
 
 // ── Shell for bottom nav ──────────────────────────────────────────────────
 
-class _MainShell extends StatefulWidget {
+class _MainShell extends StatelessWidget {
   final Widget child;
   const _MainShell({required this.child});
-
-  @override
-  State<_MainShell> createState() => _MainShellState();
-}
-
-class _MainShellState extends State<_MainShell> {
-  int _index = 0;
 
   static const _tabs = [
     AppRoutes.dashboard,
@@ -55,18 +48,26 @@ class _MainShellState extends State<_MainShell> {
     AppRoutes.settings,
   ];
 
+  int _indexFromLocation(String location) {
+    for (int i = 1; i < _tabs.length; i++) {
+      if (location.startsWith(_tabs[i])) return i;
+    }
+    return 0; // dashboard
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Derive selected index from current route so back/forward stays in sync
+    final location = GoRouterState.of(context).uri.path;
+    final currentIndex = _indexFromLocation(location);
+
     return Scaffold(
-      body: widget.child,
+      body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: currentIndex,
         backgroundColor: AppTheme.surface,
-        indicatorColor: AppTheme.primary.withOpacity(0.2),
-        onDestinationSelected: (i) {
-          setState(() => _index = i);
-          context.go(_tabs[i]);
-        },
+        indicatorColor: AppTheme.primary.withValues(alpha: 0.2),
+        onDestinationSelected: (i) => context.go(_tabs[i]),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
@@ -101,17 +102,17 @@ class _MainShellState extends State<_MainShell> {
 
 // ── Router ────────────────────────────────────────────────────────────────
 
-final _shellKey = GlobalKey<NavigatorState>();
-final _rootKey = GlobalKey<NavigatorState>();
-
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final rootKey = GlobalKey<NavigatorState>();
+  final shellKey = GlobalKey<NavigatorState>();
+
   return GoRouter(
-    navigatorKey: _rootKey,
+    navigatorKey: rootKey,
     initialLocation: AppRoutes.dashboard,
     routes: [
       // ── Shell routes (with bottom nav) ──────────────────────────────
       ShellRoute(
-        navigatorKey: _shellKey,
+        navigatorKey: shellKey,
         builder: (_, state, child) => _MainShell(child: child),
         routes: [
           GoRoute(

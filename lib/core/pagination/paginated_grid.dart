@@ -5,8 +5,8 @@ import 'paginated_state.dart';
 /// Reusable infinite-scroll grid that works with [PaginatedState].
 ///
 /// Triggers [onLoadMore] when the user scrolls within [loadMoreThreshold]
-/// of the bottom. Shows a loading indicator at the bottom while fetching.
-class PaginatedGrid<T> extends StatelessWidget {
+/// of the bottom. Shows a loading indicator below the grid while fetching.
+class PaginatedGrid<T> extends StatefulWidget {
   final PaginatedState<T> state;
   final Widget Function(BuildContext context, T item, int index) itemBuilder;
   final VoidCallback onLoadMore;
@@ -39,90 +39,110 @@ class PaginatedGrid<T> extends StatelessWidget {
   });
 
   @override
+  State<PaginatedGrid<T>> createState() => _PaginatedGridState<T>();
+}
+
+class _PaginatedGridState<T> extends State<PaginatedGrid<T>> {
+  bool _loadMoreTriggered = false;
+
+  @override
+  void didUpdateWidget(PaginatedGrid<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset trigger when loading finishes so next scroll can fire again
+    if (oldWidget.state.isLoading && !widget.state.isLoading) {
+      _loadMoreTriggered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Initial loading
-    if (state.isLoading && state.items.isEmpty) {
+    if (widget.state.isLoading && widget.state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
     // Error with no data
-    if (state.hasError && state.items.isEmpty) {
-      return errorWidget ??
+    if (widget.state.hasError && widget.state.items.isEmpty) {
+      return widget.errorWidget ??
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.error_outline, size: 48, color: Colors.white38),
                 const SizedBox(height: 12),
-                const Text('Failed to load', style: TextStyle(color: Colors.white54)),
-                if (onRefresh != null)
-                  TextButton(onPressed: onRefresh, child: const Text('Retry')),
+                const Text('Failed to load',
+                    style: TextStyle(color: Colors.white54)),
+                if (widget.onRefresh != null)
+                  TextButton(
+                      onPressed: widget.onRefresh,
+                      child: const Text('Retry')),
               ],
             ),
           );
     }
 
     // Empty state
-    if (state.isEmpty) {
-      return emptyWidget ??
+    if (widget.state.isEmpty) {
+      return widget.emptyWidget ??
           const Center(
             child: Text('No items', style: TextStyle(color: Colors.white54)),
           );
     }
 
-    // Total items + optional loading indicator at bottom
-    final totalCount = state.items.length + (state.isLoading ? 1 : 0);
-
-    final grid = CustomScrollView(
+    final scrollView = CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: padding,
+          padding: widget.padding,
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: crossAxisSpacing,
-              mainAxisSpacing: mainAxisSpacing,
-              childAspectRatio: childAspectRatio,
+              crossAxisCount: widget.crossAxisCount,
+              crossAxisSpacing: widget.crossAxisSpacing,
+              mainAxisSpacing: widget.mainAxisSpacing,
+              childAspectRatio: widget.childAspectRatio,
             ),
             delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index >= state.items.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-                return itemBuilder(context, state.items[index], index);
-              },
-              childCount: totalCount,
+              (context, index) =>
+                  widget.itemBuilder(context, widget.state.items[index], index),
+              childCount: widget.state.items.length,
             ),
           ),
         ),
+        // Loading indicator as a separate sliver below the grid
+        if (widget.state.isLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
       ],
     );
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        if (notification is ScrollUpdateNotification) {
+        if (notification is ScrollUpdateNotification && !_loadMoreTriggered) {
           final maxScroll = notification.metrics.maxScrollExtent;
           final currentScroll = notification.metrics.pixels;
-          if (maxScroll - currentScroll <= loadMoreThreshold) {
-            onLoadMore();
+          if (maxScroll - currentScroll <= widget.loadMoreThreshold) {
+            _loadMoreTriggered = true;
+            widget.onLoadMore();
           }
         }
         return false;
       },
-      child: onRefresh != null
-          ? RefreshIndicator(onRefresh: () async => onRefresh!(), child: grid)
-          : grid,
+      child: widget.onRefresh != null
+          ? RefreshIndicator(
+              onRefresh: () async => widget.onRefresh!(),
+              child: scrollView)
+          : scrollView,
     );
   }
 }
 
 /// Reusable infinite-scroll list variant.
-class PaginatedList<T> extends StatelessWidget {
+class PaginatedList<T> extends StatefulWidget {
   final PaginatedState<T> state;
   final Widget Function(BuildContext context, T item, int index) itemBuilder;
   final VoidCallback onLoadMore;
@@ -147,81 +167,103 @@ class PaginatedList<T> extends StatelessWidget {
   });
 
   @override
+  State<PaginatedList<T>> createState() => _PaginatedListState<T>();
+}
+
+class _PaginatedListState<T> extends State<PaginatedList<T>> {
+  bool _loadMoreTriggered = false;
+
+  @override
+  void didUpdateWidget(PaginatedList<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.isLoading && !widget.state.isLoading) {
+      _loadMoreTriggered = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (state.isLoading && state.items.isEmpty) {
+    if (widget.state.isLoading && widget.state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (state.hasError && state.items.isEmpty) {
-      return errorWidget ??
+    if (widget.state.hasError && widget.state.items.isEmpty) {
+      return widget.errorWidget ??
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.error_outline, size: 48, color: Colors.white38),
                 const SizedBox(height: 12),
-                const Text('Failed to load', style: TextStyle(color: Colors.white54)),
-                if (onRefresh != null)
-                  TextButton(onPressed: onRefresh, child: const Text('Retry')),
+                const Text('Failed to load',
+                    style: TextStyle(color: Colors.white54)),
+                if (widget.onRefresh != null)
+                  TextButton(
+                      onPressed: widget.onRefresh,
+                      child: const Text('Retry')),
               ],
             ),
           );
     }
 
-    if (state.isEmpty) {
-      return emptyWidget ??
+    if (widget.state.isEmpty) {
+      return widget.emptyWidget ??
           const Center(
             child: Text('No items', style: TextStyle(color: Colors.white54)),
           );
     }
 
-    final totalCount = state.items.length + (state.isLoading ? 1 : 0);
-
-    final list = CustomScrollView(
+    final scrollView = CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: padding,
+          padding: widget.padding,
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                if (index >= state.items.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-                final item = itemBuilder(context, state.items[index], index);
-                if (separatorBuilder != null && index < state.items.length - 1) {
+                final item =
+                    widget.itemBuilder(context, widget.state.items[index], index);
+                if (widget.separatorBuilder != null &&
+                    index < widget.state.items.length - 1) {
                   return Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [item, separatorBuilder!(context, index)],
+                    children: [item, widget.separatorBuilder!(context, index)],
                   );
                 }
                 return item;
               },
-              childCount: totalCount,
+              childCount: widget.state.items.length,
             ),
           ),
         ),
+        if (widget.state.isLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
       ],
     );
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        if (notification is ScrollUpdateNotification) {
+        if (notification is ScrollUpdateNotification && !_loadMoreTriggered) {
           final maxScroll = notification.metrics.maxScrollExtent;
           final currentScroll = notification.metrics.pixels;
-          if (maxScroll - currentScroll <= loadMoreThreshold) {
-            onLoadMore();
+          if (maxScroll - currentScroll <= widget.loadMoreThreshold) {
+            _loadMoreTriggered = true;
+            widget.onLoadMore();
           }
         }
         return false;
       },
-      child: onRefresh != null
-          ? RefreshIndicator(onRefresh: () async => onRefresh!(), child: list)
-          : list,
+      child: widget.onRefresh != null
+          ? RefreshIndicator(
+              onRefresh: () async => widget.onRefresh!(),
+              child: scrollView)
+          : scrollView,
     );
   }
 }

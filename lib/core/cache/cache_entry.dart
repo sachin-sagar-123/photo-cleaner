@@ -21,7 +21,11 @@ class MemoryCache {
       _store.remove(key);
       return null;
     }
-    return entry.value as T;
+    final value = entry.value;
+    if (value is T) return value;
+    // Type mismatch — remove stale entry to avoid repeated cast failures
+    _store.remove(key);
+    return null;
   }
 
   void set<T>(String key, T value, {Duration ttl = const Duration(minutes: 5)}) {

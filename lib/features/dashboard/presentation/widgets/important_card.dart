@@ -26,17 +26,17 @@ class ImportantCard extends ConsumerWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                Colors.amber.withOpacity(0.15),
-                Colors.orange.withOpacity(0.1),
+                Colors.amber.withValues(alpha: 0.15),
+                Colors.orange.withValues(alpha: 0.1),
               ]),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
             ),
             child: Row(children: [
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
+                  color: Colors.amber.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.star, color: Colors.amber, size: 22),

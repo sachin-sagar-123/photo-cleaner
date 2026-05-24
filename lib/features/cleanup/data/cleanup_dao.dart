@@ -46,6 +46,16 @@ class CleanupDao {
     return result.first['cnt'] as int;
   }
 
+  Future<void> deletePhotos(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final database = await _db.db;
+    final batch = database.batch();
+    for (final id in ids) {
+      batch.delete('photo_assets', where: 'id = ?', whereArgs: [id]);
+    }
+    await batch.commit(noResult: true);
+  }
+
   Future<void> removeIssue(String id, QualityIssue issue) async {
     final database = await _db.db;
     final rows = await database.query('photo_assets',

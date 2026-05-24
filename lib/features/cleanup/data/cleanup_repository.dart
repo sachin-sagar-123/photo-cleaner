@@ -58,12 +58,16 @@ class CleanupRepository {
 
   Future<Result<void>> deletePhotos(List<PhotoAsset> photos) async {
     try {
+      // Delete files from disk
       for (final photo in photos) {
         if (photo.path.isNotEmpty) {
           final file = File(photo.path);
           if (await file.exists()) await file.delete();
         }
       }
+      // Delete records from database
+      final ids = photos.map((p) => p.id).toList();
+      await _dao.deletePhotos(ids);
       invalidate();
       return const Success(null);
     } catch (e) {

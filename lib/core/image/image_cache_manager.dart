@@ -40,9 +40,12 @@ class ImageCacheManager {
     _evict();
   }
 
-  /// Evict entries with a specific path prefix (e.g., after photo deletion).
+  /// Evict all size variants for a specific file path.
+  /// Cache keys are formatted as "$size:$path", so we match on the
+  /// ":$path" suffix to avoid false positives from substring overlap.
   void invalidatePath(String path) {
-    final keysToRemove = _cache.keys.where((k) => k.contains(path)).toList();
+    final suffix = ':$path';
+    final keysToRemove = _cache.keys.where((k) => k.endsWith(suffix)).toList();
     for (final k in keysToRemove) {
       final entry = _cache.remove(k);
       if (entry != null) _currentBytes -= entry.bytes.lengthInBytes;

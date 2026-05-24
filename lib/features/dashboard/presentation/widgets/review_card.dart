@@ -26,17 +26,17 @@ class ReviewCard extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                AppTheme.primary.withOpacity(0.15),
-                AppTheme.secondary.withOpacity(0.1),
+                AppTheme.primary.withValues(alpha: 0.15),
+                AppTheme.secondary.withValues(alpha: 0.1),
               ]),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
             ),
             child: Row(children: [
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.2),
+                  color: AppTheme.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.swipe, color: AppTheme.primary, size: 24),

@@ -55,9 +55,9 @@ class ThumbnailProvider extends ImageProvider<ThumbnailProvider> {
           getTargetSize: (w, h) => _targetSize(w, h, size));
     }
 
-    // Read from disk
+    // Read from disk (async to avoid blocking UI thread)
     final file = File(path);
-    if (!file.existsSync()) {
+    if (!await file.exists()) {
       throw StateError('File not found: $path');
     }
 

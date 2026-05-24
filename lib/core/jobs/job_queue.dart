@@ -6,7 +6,7 @@ import 'dart:math';
 enum JobPriority { high, normal, low }
 
 /// Status of a queued job.
-enum JobStatus { pending, running, completed, failed, cancelled }
+enum JobStatus { pending, running, completed, failed, cancelled, retrying }
 
 /// A single unit of background work with retry and backoff.
 class Job<T> {
@@ -35,12 +35,16 @@ class Job<T> {
     this.onError,
   });
 
-  /// Exponential backoff with jitter: base * 2^attempt + random(0..base)
+  /// Exponential backoff with jitter: base * 2^attempt + random(0..base).
+  /// Capped at 5 minutes to prevent unreasonable delays.
   Duration backoffFor(int attempt) {
     final base = initialBackoff.inMilliseconds;
-    final exponential = base * pow(2, attempt).toInt();
-    final jitter = Random().nextInt(base);
-    return Duration(milliseconds: exponential + jitter);
+    // Cap exponent to avoid integer overflow
+    final clampedAttempt = attempt.clamp(0, 10);
+    final exponential = base * (1 << clampedAttempt); // bit shift = pow(2, n)
+    final jitter = Random().nextInt(base + 1);
+    final totalMs = (exponential + jitter).clamp(0, 5 * 60 * 1000);
+    return Duration(milliseconds: totalMs);
   }
 }
 
@@ -50,6 +54,7 @@ class QueueProgress {
   final int completed;
   final int failed;
   final int running;
+  final int retrying;
   final String? currentJobType;
 
   const QueueProgress({
@@ -57,10 +62,11 @@ class QueueProgress {
     this.completed = 0,
     this.failed = 0,
     this.running = 0,
+    this.retrying = 0,
     this.currentJobType,
   });
 
-  int get pending => total - completed - failed - running;
+  int get pending => total - completed - failed - running - retrying;
   double get fraction => total == 0 ? 0 : completed / total;
   bool get isDone => completed + failed >= total;
 
@@ -76,10 +82,12 @@ class QueueProgress {
 /// survive transient failures, and report progress to the UI.
 class JobQueue {
   final int concurrency;
+  final int maxHistorySize;
   final Queue<Job> _pending = Queue();
   final List<Job> _running = [];
   final List<Job> _completed = [];
   final List<Job> _failed = [];
+  int _retryingCount = 0; // jobs in backoff delay
   bool _paused = false;
   bool _disposed = false;
 
@@ -88,14 +96,16 @@ class JobQueue {
   /// Stream of progress updates. Emits after every job state change.
   Stream<QueueProgress> get progressStream => _progressController.stream;
 
-  JobQueue({this.concurrency = 1});
+  JobQueue({this.concurrency = 1, this.maxHistorySize = 500});
 
   /// Current progress snapshot.
   QueueProgress get progress => QueueProgress(
-        total: _pending.length + _running.length + _completed.length + _failed.length,
+        total: _pending.length + _running.length + _completed.length +
+            _failed.length + _retryingCount,
         completed: _completed.length,
         failed: _failed.length,
         running: _running.length,
+        retrying: _retryingCount,
         currentJobType: _running.isNotEmpty ? _running.first.type : null,
       );
 
@@ -140,13 +150,16 @@ class JobQueue {
 
   /// Cancel a specific pending job by ID.
   bool cancel(String jobId) {
-    final job = _pending.cast<Job?>().firstWhere(
-          (j) => j?.id == jobId,
-          orElse: () => null,
-        );
-    if (job != null) {
-      job.status = JobStatus.cancelled;
-      _pending.remove(job);
+    Job? target;
+    for (final job in _pending) {
+      if (job.id == jobId) {
+        target = job;
+        break;
+      }
+    }
+    if (target != null) {
+      target.status = JobStatus.cancelled;
+      _pending.remove(target);
       _emitProgress();
       return true;
     }
@@ -161,7 +174,7 @@ class JobQueue {
   }
 
   bool get isPaused => _paused;
-  bool get isIdle => _running.isEmpty && _pending.isEmpty;
+  bool get isIdle => _running.isEmpty && _pending.isEmpty && _retryingCount == 0;
   int get pendingCount => _pending.length;
 
   void dispose() {
@@ -192,8 +205,10 @@ class JobQueue {
       job.status = JobStatus.completed;
       job.result = result;
       _running.remove(job);
-      _completed.add(job);
+      _addToHistory(_completed, job);
       job.onComplete?.call(result);
+      _emitProgress();
+      _processNext();
     } catch (e) {
       if (_disposed) return;
 
@@ -202,11 +217,16 @@ class JobQueue {
       job.onError?.call(e, job.attempts);
 
       if (job.attempts < job.maxRetries) {
-        // Re-queue with backoff
-        job.status = JobStatus.pending;
+        // Track retrying state so progress total stays consistent
+        job.status = JobStatus.retrying;
+        _retryingCount++;
+        _emitProgress();
+
         final delay = job.backoffFor(job.attempts);
         Future.delayed(delay, () {
+          _retryingCount--;
           if (!_disposed) {
+            job.status = JobStatus.pending;
             _pending.addFirst(job);
             _emitProgress();
             _processNext();
@@ -214,12 +234,19 @@ class JobQueue {
         });
       } else {
         job.status = JobStatus.failed;
-        _failed.add(job);
+        _addToHistory(_failed, job);
+        _emitProgress();
+        _processNext();
       }
     }
+  }
 
-    _emitProgress();
-    _processNext();
+  /// Add to history list, trimming oldest entries if over budget.
+  void _addToHistory(List<Job> list, Job job) {
+    list.add(job);
+    while (list.length > maxHistorySize) {
+      list.removeAt(0);
+    }
   }
 
   void _emitProgress() {
