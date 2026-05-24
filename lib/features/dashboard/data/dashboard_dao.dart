@@ -34,11 +34,15 @@ class DashboardDao {
     return result.first['cnt'] as int;
   }
 
+  /// Count photos by effective category (AI category overrides local).
+  /// Uses COALESCE: if ai_category is set, match by name; else match by index.
   Future<int> getPhotosCountByCategory(PhotoCategory cat) async {
     final database = await _db.db;
     final result = await database.rawQuery(
-        'SELECT COUNT(*) as cnt FROM photo_assets WHERE category = ?',
-        [cat.index]);
+      'SELECT COUNT(*) as cnt FROM photo_assets '
+      'WHERE CASE WHEN ai_category IS NOT NULL THEN ai_category = ? ELSE category = ? END',
+      [cat.name, cat.index],
+    );
     return result.first['cnt'] as int;
   }
 

@@ -1,5 +1,6 @@
 import '../../../core/cache/cache_entry.dart';
 import '../../../core/error/result.dart';
+import '../../../models/photo_asset.dart';
 import '../../../services/ai_service.dart';
 
 /// Cached repository for AI operations.
@@ -29,9 +30,9 @@ class AIRepository {
     }
   }
 
-  Future<Result<PhotoAICategory>> categorizePhoto(String imagePath) async {
+  Future<Result<PhotoCategory>> categorizePhoto(String imagePath) async {
     final key = 'ai:category:$imagePath';
-    final cached = _cache.get<PhotoAICategory>(key);
+    final cached = _cache.get<PhotoCategory>(key);
     if (cached != null) return Success(cached);
 
     try {

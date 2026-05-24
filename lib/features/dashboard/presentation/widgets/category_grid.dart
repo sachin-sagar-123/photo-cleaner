@@ -9,12 +9,22 @@ import '../providers/dashboard_providers.dart';
 class CategoryGrid extends ConsumerWidget {
   const CategoryGrid({super.key});
 
-  static const _categories = [
+  /// All 15 categories with icons and colors.
+  static final _categories = [
     (PhotoCategory.people, Icons.people_outline, 'People', AppTheme.primary),
+    (PhotoCategory.selfie, Icons.face_outlined, 'Selfie', Colors.pink),
     (PhotoCategory.food, Icons.restaurant_outlined, 'Food', Colors.orange),
     (PhotoCategory.nature, Icons.park_outlined, 'Nature', Colors.green),
+    (PhotoCategory.animal, Icons.pets_outlined, 'Animal', Colors.brown),
+    (PhotoCategory.travel, Icons.flight_outlined, 'Travel', Colors.teal),
+    (PhotoCategory.architecture, Icons.apartment_outlined, 'Architecture', Colors.blueGrey),
+    (PhotoCategory.art, Icons.palette_outlined, 'Art', Colors.deepPurple),
+    (PhotoCategory.sport, Icons.sports_soccer_outlined, 'Sport', Colors.lime),
+    (PhotoCategory.vehicle, Icons.directions_car_outlined, 'Vehicle', Colors.indigo),
+    (PhotoCategory.night, Icons.nightlight_outlined, 'Night', Colors.deepOrange),
     (PhotoCategory.screenshots, Icons.screenshot_outlined, 'Screenshots', Colors.blue),
     (PhotoCategory.documents, Icons.description_outlined, 'Documents', Colors.purple),
+    (PhotoCategory.meme, Icons.sentiment_very_satisfied_outlined, 'Meme', Colors.amber),
     (PhotoCategory.other, Icons.photo_outlined, 'Other', AppTheme.textSecondary),
   ];
 

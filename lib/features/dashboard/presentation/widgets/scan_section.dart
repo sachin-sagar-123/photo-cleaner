@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../providers/app_providers.dart'
+    show aiCategorizeStateProvider, aiServiceProvider;
 import '../../../../services/scanner_service.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../scan/presentation/providers/scan_providers.dart';
@@ -110,6 +112,8 @@ class ScanSection extends StatelessWidget {
             ),
           ),
         ],
+        // AI categorization section
+        _AICategorizeSection(ref: ref),
       ],
     );
   }
@@ -204,5 +208,128 @@ class ScanSection extends StatelessWidget {
     final seconds = ms ~/ 1000;
     if (seconds < 60) return '${seconds}s';
     return '${seconds ~/ 60}m ${seconds % 60}s';
+  }
+}
+
+/// AI categorization progress + re-categorize button.
+class _AICategorizeSection extends StatelessWidget {
+  final WidgetRef ref;
+
+  const _AICategorizeSection({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final aiState = ref.watch(aiCategorizeStateProvider);
+    final aiConfigured = ref.watch(aiServiceProvider).isConfigured;
+
+    // Show nothing if AI is not configured and not running
+    if (!aiConfigured && !aiState.isRunning) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 12),
+        const Divider(color: AppTheme.surface, height: 1),
+        const SizedBox(height: 12),
+
+        if (aiState.isRunning && aiState.progress != null) ...[
+          // Progress indicator
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.deepPurple)),
+                  const SizedBox(width: 10),
+                  const Expanded(child: Text('AI Categorizing...',
+                    style: TextStyle(color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w600, fontSize: 13))),
+                  TextButton(
+                    onPressed: () => ref.read(aiCategorizeStateProvider.notifier).cancel(),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: aiState.progress!.percent,
+                  backgroundColor: AppTheme.surface,
+                  color: Colors.deepPurple,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${aiState.progress!.processed}/${aiState.progress!.total} — '
+                  '${aiState.progress!.succeeded} OK, ${aiState.progress!.failed} failed'
+                  '${aiState.progress!.currentFile.isNotEmpty ? ' — ${aiState.progress!.currentFile}' : ''}',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ] else if (aiState.progress?.isDone == true) ...[
+          // Completed summary
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.auto_awesome, color: Colors.deepPurple, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'AI categorized ${aiState.progress!.succeeded} photos',
+                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+              )),
+            ]),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // Re-categorize button (only when not running)
+        if (!aiState.isRunning && aiConfigured)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => ref.read(aiCategorizeStateProvider.notifier).start(),
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              label: const Text('Categorize with AI'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: Colors.deepPurple,
+                side: BorderSide(color: Colors.deepPurple.withValues(alpha: 0.4)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+
+        if (!aiState.isRunning && aiConfigured) ...[
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => ref.read(aiCategorizeStateProvider.notifier).start(recategorize: true),
+              icon: const Icon(Icons.replay, size: 18),
+              label: const Text('Re-categorize All'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: AppTheme.textSecondary,
+                side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

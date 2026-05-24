@@ -18,7 +18,7 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'photo_cleaner.db'),
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -40,6 +40,12 @@ class DatabaseService {
       await db.execute(
           'ALTER TABLE photo_assets ADD COLUMN is_important INTEGER NOT NULL DEFAULT 0');
     }
+    if (oldVersion < 5) {
+      // AI-assigned category stored as text name (e.g. 'food', 'selfie')
+      // so it survives enum reordering. NULL = not yet AI-categorized.
+      await db.execute(
+          'ALTER TABLE photo_assets ADD COLUMN ai_category TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -51,6 +57,7 @@ class DatabaseService {
         size_bytes INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         category INTEGER NOT NULL DEFAULT 5,
+        ai_category TEXT,
         issues TEXT,
         suggested_name TEXT,
         is_backed_up INTEGER NOT NULL DEFAULT 0,
@@ -227,13 +234,11 @@ class DatabaseService {
     required int offset,
   }) async {
     final database = await db;
-    final rows = await database.query(
-      'photo_assets',
-      where: 'category = ?',
-      whereArgs: [cat.index],
-      limit: limit,
-      offset: offset,
-      orderBy: 'created_at DESC',
+    final rows = await database.rawQuery(
+      'SELECT * FROM photo_assets '
+      'WHERE CASE WHEN ai_category IS NOT NULL THEN ai_category = ? ELSE category = ? END '
+      'ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      [cat.name, cat.index, limit, offset],
     );
     return rows.map(PhotoAsset.fromMap).toList();
   }
@@ -241,8 +246,9 @@ class DatabaseService {
   Future<int> getPhotosCountByCategory(PhotoCategory cat) async {
     final database = await db;
     final result = await database.rawQuery(
-      'SELECT COUNT(*) as cnt FROM photo_assets WHERE category = ?',
-      [cat.index],
+      'SELECT COUNT(*) as cnt FROM photo_assets '
+      'WHERE CASE WHEN ai_category IS NOT NULL THEN ai_category = ? ELSE category = ? END',
+      [cat.name, cat.index],
     );
     return result.first['cnt'] as int;
   }
@@ -295,10 +301,10 @@ class DatabaseService {
 
   Future<List<PhotoAsset>> getPhotosByCategory(PhotoCategory cat) async {
     final database = await db;
-    final rows = await database.query(
-      'photo_assets',
-      where: 'category = ?',
-      whereArgs: [cat.index],
+    final rows = await database.rawQuery(
+      'SELECT * FROM photo_assets '
+      'WHERE CASE WHEN ai_category IS NOT NULL THEN ai_category = ? ELSE category = ? END',
+      [cat.name, cat.index],
     );
     return rows.map(PhotoAsset.fromMap).toList();
   }
@@ -353,6 +359,61 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  /// Set AI-assigned category for a photo.
+  Future<void> updateAICategory(String id, String categoryName) async {
+    final database = await db;
+    await database.update(
+      'photo_assets',
+      {'ai_category': categoryName},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Batch-set AI categories. Map keys are photo IDs, values are category names.
+  Future<void> updateAICategories(Map<String, String> idToCategory) async {
+    if (idToCategory.isEmpty) return;
+    final database = await db;
+    final batch = database.batch();
+    for (final entry in idToCategory.entries) {
+      batch.update(
+        'photo_assets',
+        {'ai_category': entry.value},
+        where: 'id = ?',
+        whereArgs: [entry.key],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Returns photos that haven't been AI-categorized yet.
+  /// Returns (id, path) pairs to avoid loading full objects.
+  Future<List<Map<String, String>>> getUncategorizedPhotos({
+    int limit = 50,
+  }) async {
+    final database = await db;
+    final rows = await database.query(
+      'photo_assets',
+      columns: ['id', 'path'],
+      where: 'ai_category IS NULL AND is_drive_only = 0 AND path != ?',
+      whereArgs: [''],
+      limit: limit,
+      orderBy: 'created_at DESC',
+    );
+    return rows
+        .map((r) => {'id': r['id'] as String, 'path': r['path'] as String})
+        .toList();
+  }
+
+  /// Count of photos without AI categorization.
+  Future<int> getUncategorizedCount() async {
+    final database = await db;
+    final result = await database.rawQuery(
+      'SELECT COUNT(*) as cnt FROM photo_assets WHERE ai_category IS NULL AND is_drive_only = 0',
+    );
+    return result.first['cnt'] as int;
   }
 
   /// Update the file path after moving to Important folder.

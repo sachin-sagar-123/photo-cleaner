@@ -54,12 +54,7 @@ class MlAnalysisService {
   /// of simple if/else on average RGB which caused massive misclassification.
   static PhotoCategory classifyFromImage(img.Image image, String filename) {
     final scores = <PhotoCategory, double>{
-      PhotoCategory.screenshots: 0,
-      PhotoCategory.documents: 0,
-      PhotoCategory.food: 0,
-      PhotoCategory.people: 0,
-      PhotoCategory.nature: 0,
-      PhotoCategory.other: 0,
+      for (final cat in PhotoCategory.values) cat: 0,
     };
 
     // ── Signal 1: Filename patterns (weight: 10 — very reliable) ──────────
@@ -546,14 +541,7 @@ class MlAnalysisService {
     required DateTime createdAt,
     String? location,
   }) {
-    final prefix = switch (category) {
-      PhotoCategory.food => 'Food',
-      PhotoCategory.people => 'People',
-      PhotoCategory.nature => 'Nature',
-      PhotoCategory.screenshots => 'Screenshot',
-      PhotoCategory.documents => 'Document',
-      PhotoCategory.other => 'Photo',
-    };
+    final prefix = category.displayName;
 
     final date =
         '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-'

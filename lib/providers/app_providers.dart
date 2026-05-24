@@ -15,6 +15,68 @@ final scanPreferencesProvider = Provider((_) => ScanPreferencesService());
 final backgroundScanProvider = Provider((_) => BackgroundScanService());
 final importantServiceProvider = Provider((_) => ImportantService());
 final aiServiceProvider = Provider((_) => AIService());
+final aiCategorizerProvider = Provider((ref) =>
+    AICategorizer(ref.read(aiServiceProvider), ref.read(databaseServiceProvider)));
+
+/// State for AI batch categorization progress.
+class AICategorizeState {
+  final bool isRunning;
+  final AICategorizeProgress? progress;
+  final String? error;
+
+  const AICategorizeState({
+    this.isRunning = false,
+    this.progress,
+    this.error,
+  });
+}
+
+class AICategorizeNotifier extends StateNotifier<AICategorizeState> {
+  final AICategorizer _categorizer;
+  final Ref _ref;
+
+  AICategorizeNotifier(this._categorizer, this._ref)
+      : super(const AICategorizeState());
+
+  Future<void> start({bool recategorize = false}) async {
+    if (state.isRunning) return;
+    state = const AICategorizeState(isRunning: true);
+
+    try {
+      final stream = recategorize
+          ? _categorizer.recategorizeAll()
+          : _categorizer.categorizeAll();
+
+      await for (final progress in stream) {
+        state = AICategorizeState(
+          isRunning: !progress.isDone,
+          progress: progress,
+        );
+      }
+
+      // Invalidate category-dependent providers
+      for (final cat in PhotoCategory.values) {
+        _ref.invalidate(photosCountByCategoryProvider(cat));
+        _ref.invalidate(photosByCategoryProvider(cat));
+      }
+      _ref.invalidate(storageStatsProvider);
+    } catch (e) {
+      state = AICategorizeState(isRunning: false, error: e.toString());
+    }
+  }
+
+  void cancel() {
+    _categorizer.cancel();
+  }
+}
+
+final aiCategorizeStateProvider =
+    StateNotifierProvider<AICategorizeNotifier, AICategorizeState>((ref) {
+  return AICategorizeNotifier(
+    ref.read(aiCategorizerProvider),
+    ref,
+  );
+});
 
 final importantPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
   final db = ref.read(databaseServiceProvider);
@@ -124,6 +186,13 @@ class ScanNotifier extends StateNotifier<ScanState> {
       // Clear background scan pending flag if set
       final bgService = _ref.read(backgroundScanProvider);
       await bgService.clearPendingScan();
+
+      // Auto-trigger AI categorization if AI is configured
+      final ai = _ref.read(aiServiceProvider);
+      await ai.load();
+      if (ai.isConfigured) {
+        _ref.read(aiCategorizeStateProvider.notifier).start();
+      }
     } catch (e) {
       state = state.copyWith(error: e.toString());
     } finally {

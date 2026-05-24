@@ -219,7 +219,7 @@ class _TopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${_formatDate(asset.createdAt)} · ${_formatSize(asset.sizeBytes)} · ${asset.category.name}',
+                  '${_formatDate(asset.createdAt)} · ${_formatSize(asset.sizeBytes)} · ${asset.effectiveCategory.displayName}${asset.hasAICategory ? ' (AI)' : ''}',
                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
               ],
@@ -275,7 +275,8 @@ class _InfoPanel extends StatelessWidget {
         children: [
           const SizedBox(height: 40), // gradient fade area
           _infoRow(Icons.folder_outlined, 'Path', asset.path.isNotEmpty ? asset.path : 'Drive only'),
-          _infoRow(Icons.category_outlined, 'Category', asset.category.name.toUpperCase()),
+          _infoRow(Icons.category_outlined, 'Category',
+              '${asset.effectiveCategory.displayName}${asset.hasAICategory ? ' (AI)' : ' (local)'}'),
           _infoRow(Icons.straighten, 'Size', _formatSize(asset.sizeBytes)),
           _infoRow(Icons.calendar_today, 'Created', _formatFullDate(asset.createdAt)),
           if (asset.suggestedName != null && asset.suggestedName!.isNotEmpty && asset.suggestedName != asset.name)

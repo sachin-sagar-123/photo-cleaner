@@ -5,6 +5,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/photo_asset.dart';
+
 // ── AI Provider enum ──────────────────────────────────────────────────────
 
 enum AIProvider {
@@ -37,7 +39,7 @@ const _kGrokKey = 'ai_grok_key';
 
 abstract class _AIBackend {
   Future<String> generateCaption(String imagePath);
-  Future<PhotoAICategory> categorizePhoto(String imagePath);
+  Future<PhotoCategory> categorizePhoto(String imagePath);
   Future<PhotoAIAnalysis> analyzePhoto(String imagePath);
   Future<String> chat(String message, {String? imagePath});
   void resetChat();
@@ -117,11 +119,31 @@ class AIService {
   Future<String> generateCaption(String imagePath) =>
       _requireBackend.generateCaption(imagePath);
 
-  Future<PhotoAICategory> categorizePhoto(String imagePath) =>
+  Future<PhotoCategory> categorizePhoto(String imagePath) =>
       _requireBackend.categorizePhoto(imagePath);
 
   Future<PhotoAIAnalysis> analyzePhoto(String imagePath) =>
       _requireBackend.analyzePhoto(imagePath);
+
+  /// Batch categorize photos. Returns map of imagePath -> PhotoCategory.
+  /// Rate-limited: waits [delayMs] between each API call.
+  Future<Map<String, PhotoCategory>> batchCategorize(
+    List<String> imagePaths, {
+    int delayMs = 200,
+  }) async {
+    final results = <String, PhotoCategory>{};
+    for (final path in imagePaths) {
+      try {
+        results[path] = await categorizePhoto(path);
+      } catch (_) {
+        // Skip failures — will be retried on next batch
+      }
+      if (delayMs > 0) {
+        await Future.delayed(Duration(milliseconds: delayMs));
+      }
+    }
+    return results;
+  }
 
   Future<List<PhotoAIAnalysis>> batchAnalyze(List<String> imagePaths) async {
     final results = <PhotoAIAnalysis>[];
@@ -132,7 +154,7 @@ class AIService {
         results.add(PhotoAIAnalysis(
           quality: 'unknown', shouldKeep: 'maybe',
           reason: 'Analysis failed: $e',
-          category: PhotoAICategory.other, caption: '',
+          category: PhotoCategory.other, caption: '',
         ));
       }
     }
@@ -168,7 +190,7 @@ class _GeminiBackend implements _AIBackend {
   }
 
   @override
-  Future<PhotoAICategory> categorizePhoto(String imagePath) async {
+  Future<PhotoCategory> categorizePhoto(String imagePath) async {
     final bytes = await File(imagePath).readAsBytes();
     final response = await _model.generateContent([
       Content.multi([
@@ -177,8 +199,7 @@ class _GeminiBackend implements _AIBackend {
       ]),
     ]);
     final text = (response.text ?? 'other').trim().toLowerCase();
-    return PhotoAICategory.values.firstWhere(
-      (c) => c.name == text, orElse: () => PhotoAICategory.other);
+    return PhotoCategoryX.fromName(text);
   }
 
   @override
@@ -272,12 +293,10 @@ class _GrokBackend implements _AIBackend {
   }
 
   @override
-  Future<PhotoAICategory> categorizePhoto(String imagePath) async {
+  Future<PhotoCategory> categorizePhoto(String imagePath) async {
     final text = await _complete(
         _buildImageMessage(_categorizationPrompt, imagePath));
-    final cat = text.trim().toLowerCase();
-    return PhotoAICategory.values.firstWhere(
-      (c) => c.name == cat, orElse: () => PhotoAICategory.other);
+    return PhotoCategoryX.fromName(text.trim());
   }
 
   @override
@@ -334,53 +353,11 @@ const _analysisPrompt =
 
 // ── Data models ───────────────────────────────────────────────────────────
 
-enum PhotoAICategory {
-  people, selfie, food, nature, animal, architecture,
-  document, screenshot, meme, art, travel, sport,
-  vehicle, night, other;
-
-  String get displayName => switch (this) {
-    PhotoAICategory.people => 'People',
-    PhotoAICategory.selfie => 'Selfie',
-    PhotoAICategory.food => 'Food',
-    PhotoAICategory.nature => 'Nature',
-    PhotoAICategory.animal => 'Animal',
-    PhotoAICategory.architecture => 'Architecture',
-    PhotoAICategory.document => 'Document',
-    PhotoAICategory.screenshot => 'Screenshot',
-    PhotoAICategory.meme => 'Meme',
-    PhotoAICategory.art => 'Art',
-    PhotoAICategory.travel => 'Travel',
-    PhotoAICategory.sport => 'Sport',
-    PhotoAICategory.vehicle => 'Vehicle',
-    PhotoAICategory.night => 'Night',
-    PhotoAICategory.other => 'Other',
-  };
-
-  String get emoji => switch (this) {
-    PhotoAICategory.people => '👥',
-    PhotoAICategory.selfie => '🤳',
-    PhotoAICategory.food => '🍕',
-    PhotoAICategory.nature => '🌿',
-    PhotoAICategory.animal => '🐾',
-    PhotoAICategory.architecture => '🏛️',
-    PhotoAICategory.document => '📄',
-    PhotoAICategory.screenshot => '📱',
-    PhotoAICategory.meme => '😂',
-    PhotoAICategory.art => '🎨',
-    PhotoAICategory.travel => '✈️',
-    PhotoAICategory.sport => '⚽',
-    PhotoAICategory.vehicle => '🚗',
-    PhotoAICategory.night => '🌙',
-    PhotoAICategory.other => '📷',
-  };
-}
-
 class PhotoAIAnalysis {
   final String quality;
   final String shouldKeep;
   final String reason;
-  final PhotoAICategory category;
+  final PhotoCategory category;
   final String caption;
 
   const PhotoAIAnalysis({
@@ -398,8 +375,7 @@ class PhotoAIAnalysis {
     }
 
     final catText = extract('CATEGORY').toLowerCase();
-    final category = PhotoAICategory.values.firstWhere(
-      (c) => c.name == catText, orElse: () => PhotoAICategory.other);
+    final category = PhotoCategoryX.fromName(catText);
 
     return PhotoAIAnalysis(
       quality: extract('QUALITY').toLowerCase(),

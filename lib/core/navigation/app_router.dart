@@ -190,8 +190,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['color'] ?? '') ?? 0xFF6C63FF;
           final iconCode = int.tryParse(
               state.uri.queryParameters['icon'] ?? '') ?? 0xe3f4;
+          final safeIndex = catIndex.clamp(0, PhotoCategory.values.length - 1);
           return CategoryPhotosScreen(
-            category: PhotoCategory.values[catIndex],
+            category: PhotoCategory.values[safeIndex],
             label: label,
             color: Color(colorValue),
             icon: IconData(iconCode, fontFamily: 'MaterialIcons'),

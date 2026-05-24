@@ -11,3 +11,4 @@ export 'scan_preferences_service.dart';
 export 'background_scan_service.dart';
 export 'important_service.dart';
 export 'ai_service.dart';
+export 'ai_categorizer_service.dart';

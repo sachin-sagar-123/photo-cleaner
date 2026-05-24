@@ -441,6 +441,116 @@ class _ScanSection extends StatelessWidget {
             ),
           ),
         ],
+        // AI categorization buttons
+        _buildAICategorizeSection(),
+      ],
+    );
+  }
+
+  Widget _buildAICategorizeSection() {
+    final aiState = ref.watch(aiCategorizeStateProvider);
+    final aiConfigured = ref.watch(aiServiceProvider).isConfigured;
+
+    if (!aiConfigured && !aiState.isRunning) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 12),
+        const Divider(color: AppTheme.surface, height: 1),
+        const SizedBox(height: 12),
+
+        if (aiState.isRunning && aiState.progress != null) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.deepPurple)),
+                  const SizedBox(width: 10),
+                  const Expanded(child: Text('AI Categorizing...',
+                    style: TextStyle(color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w600, fontSize: 13))),
+                  TextButton(
+                    onPressed: () => ref.read(aiCategorizeStateProvider.notifier).cancel(),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: aiState.progress!.percent,
+                  backgroundColor: AppTheme.surface,
+                  color: Colors.deepPurple,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${aiState.progress!.processed}/${aiState.progress!.total} — '
+                  '${aiState.progress!.succeeded} OK, ${aiState.progress!.failed} failed',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ] else if (aiState.progress?.isDone == true) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.auto_awesome, color: Colors.deepPurple, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'AI categorized ${aiState.progress!.succeeded} photos',
+                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+              )),
+            ]),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        if (!aiState.isRunning && aiConfigured) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => ref.read(aiCategorizeStateProvider.notifier).start(),
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              label: const Text('Categorize with AI'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: Colors.deepPurple,
+                side: BorderSide(color: Colors.deepPurple.withValues(alpha: 0.4)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => ref.read(aiCategorizeStateProvider.notifier).start(recategorize: true),
+              icon: const Icon(Icons.replay, size: 18),
+              label: const Text('Re-categorize All'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: AppTheme.textSecondary,
+                side: BorderSide(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -667,18 +777,21 @@ class _CategoryGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categories = [
-      (PhotoCategory.people, Icons.people_outline, 'People',
-          AppTheme.primary),
-      (PhotoCategory.food, Icons.restaurant_outlined, 'Food',
-          Colors.orange),
-      (PhotoCategory.nature, Icons.park_outlined, 'Nature',
-          Colors.green),
-      (PhotoCategory.screenshots, Icons.screenshot_outlined,
-          'Screenshots', Colors.blue),
-      (PhotoCategory.documents, Icons.description_outlined,
-          'Documents', Colors.purple),
-      (PhotoCategory.other, Icons.photo_outlined, 'Other',
-          AppTheme.textSecondary),
+      (PhotoCategory.people, Icons.people_outline, 'People', AppTheme.primary),
+      (PhotoCategory.selfie, Icons.face_outlined, 'Selfie', Colors.pink),
+      (PhotoCategory.food, Icons.restaurant_outlined, 'Food', Colors.orange),
+      (PhotoCategory.nature, Icons.park_outlined, 'Nature', Colors.green),
+      (PhotoCategory.animal, Icons.pets_outlined, 'Animal', Colors.brown),
+      (PhotoCategory.travel, Icons.flight_outlined, 'Travel', Colors.teal),
+      (PhotoCategory.architecture, Icons.apartment_outlined, 'Architecture', Colors.blueGrey),
+      (PhotoCategory.art, Icons.palette_outlined, 'Art', Colors.deepPurple),
+      (PhotoCategory.sport, Icons.sports_soccer_outlined, 'Sport', Colors.lime),
+      (PhotoCategory.vehicle, Icons.directions_car_outlined, 'Vehicle', Colors.indigo),
+      (PhotoCategory.night, Icons.nightlight_outlined, 'Night', Colors.deepOrange),
+      (PhotoCategory.screenshots, Icons.screenshot_outlined, 'Screenshots', Colors.blue),
+      (PhotoCategory.documents, Icons.description_outlined, 'Documents', Colors.purple),
+      (PhotoCategory.meme, Icons.sentiment_very_satisfied_outlined, 'Meme', Colors.amber),
+      (PhotoCategory.other, Icons.photo_outlined, 'Other', AppTheme.textSecondary),
     ];
 
     return GridView.count(
