@@ -27,10 +27,18 @@ class ScannerService {
   final _junkDetector = JunkDetectorService();
 
   Stream<ScanProgress> scan() async* {
-    final permission = await PhotoManager.requestPermissionExtend();
-    if (!permission.isAuth) {
+    final permission = await PhotoManager.requestPermissionExtend(
+      requestOption: const PermissionRequestOption(
+        androidPermission: AndroidPermission(
+          type: RequestType.image,
+          mediaLocation: false,
+        ),
+      ),
+    );
+    // Accept both full and limited (Android 14 partial) access
+    if (!permission.isAuth && !permission.hasAccess) {
       throw Exception(
-          'Photo library permission denied. Please grant access in Settings.');
+          'Photo library permission denied. Go to Settings > Apps > PhotoCleaner > Permissions > Photos and videos > Allow all.');
     }
 
     // Try "All Photos" first, fall back to listing all albums
