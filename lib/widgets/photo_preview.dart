@@ -94,10 +94,10 @@ class PhotoPreview extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
+                        color: color.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: color.withOpacity(0.5)),
+                            color: color.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -207,7 +207,7 @@ class PhotoPreview extends StatelessWidget {
                         tooltip: 'Edit photo',
                         style: IconButton.styleFrom(
                           backgroundColor:
-                              AppTheme.primary.withOpacity(0.15),
+                              AppTheme.primary.withValues(alpha: 0.15),
                         ),
                       ),
                     ),
@@ -224,7 +224,7 @@ class PhotoPreview extends StatelessWidget {
                         tooltip: 'Ask AI',
                         style: IconButton.styleFrom(
                           backgroundColor:
-                              AppTheme.secondary.withOpacity(0.15),
+                              AppTheme.secondary.withValues(alpha: 0.15),
                         ),
                       ),
                     ),
@@ -242,7 +242,7 @@ class PhotoPreview extends StatelessWidget {
                         tooltip: 'Mark as important',
                         style: IconButton.styleFrom(
                           backgroundColor:
-                              Colors.amber.withOpacity(0.15),
+                              Colors.amber.withValues(alpha: 0.15),
                         ),
                       ),
                     ),
@@ -261,7 +261,7 @@ class PhotoPreview extends StatelessWidget {
                         tooltip: 'Mark as important',
                         style: IconButton.styleFrom(
                           backgroundColor:
-                              Colors.amber.withOpacity(0.15),
+                              Colors.amber.withValues(alpha: 0.15),
                         ),
                       ),
                     ),

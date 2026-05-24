@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/models.dart';
 import '../../providers/app_providers.dart';
-import '../../services/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
@@ -221,7 +219,7 @@ class _ImportantPhotosScreenState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.15),
+                        color: Colors.amber.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -238,7 +236,7 @@ class _ImportantPhotosScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppTheme.primary.withOpacity(0.15),
+                          color: AppTheme.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -286,6 +284,7 @@ class _ImportantPhotosScreenState
                           isSelected: false,
                         );
                         if (action == 'edit' && photo.path.isNotEmpty) {
+                          if (!context.mounted) return;
                           await PhotoEditorScreen.open(
                             context,
                             imagePath: photo.path,

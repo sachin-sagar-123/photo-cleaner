@@ -402,7 +402,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 2),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppTheme.textSecondary.withOpacity(0.3 + value * 0.5),
+            color: AppTheme.textSecondary.withValues(alpha: 0.3 + value * 0.5),
           ),
         );
       },
@@ -426,7 +426,7 @@ class _QuickPhotoPicker extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: 8),
             width: 40, height: 4,
             decoration: BoxDecoration(
-              color: AppTheme.textSecondary.withOpacity(0.3),
+              color: AppTheme.textSecondary.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),

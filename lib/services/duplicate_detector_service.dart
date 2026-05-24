@@ -337,7 +337,7 @@ class DuplicateDetectorService {
   /// O(n²) which is fine for n=32 (1024 operations per row/column).
   static List<double> _dct1d(List<double> input) {
     final n = input.length;
-    final pi = math.pi;
+    const pi = math.pi;
     return List.generate(n, (k) {
       double sum = 0.0;
       for (int i = 0; i < n; i++) {

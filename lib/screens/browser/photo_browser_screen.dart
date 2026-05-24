@@ -246,17 +246,17 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.arrow_back,
-                  color: AppTheme.error.withOpacity(0.5), size: 16),
+                  color: AppTheme.error.withValues(alpha: 0.5), size: 16),
               const SizedBox(width: 6),
               Text(
                 'Swipe left to delete · right to keep',
                 style: TextStyle(
-                    color: AppTheme.textSecondary.withOpacity(0.7),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.7),
                     fontSize: 12),
               ),
               const SizedBox(width: 6),
               Icon(Icons.arrow_forward,
-                  color: AppTheme.secondary.withOpacity(0.5), size: 16),
+                  color: AppTheme.secondary.withValues(alpha: 0.5), size: 16),
             ],
           ),
         ),
@@ -315,7 +315,7 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: AppTheme.secondary
-                                        .withOpacity(
+                                        .withValues(alpha: 
                                             (_dragX / 200).clamp(0, 0.4)),
                                     borderRadius:
                                         BorderRadius.circular(16),
@@ -351,7 +351,7 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                               Positioned.fill(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: AppTheme.error.withOpacity(
+                                    color: AppTheme.error.withValues(alpha: 
                                         (_dragX.abs() / 200)
                                             .clamp(0, 0.4)),
                                     borderRadius:
@@ -546,7 +546,7 @@ class _ActionButton extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               border: Border.all(color: color, width: 2),
             ),
             child: Icon(icon, color: color, size: 28),

@@ -9,6 +9,9 @@ import '../models/collage_template.dart';
 
 /// Renders collages from photos using the template system.
 class CollageService {
+  /// Convert a 0.0–1.0 color component to 0–255 int.
+  static int _to8(double v) => (v * 255).round().clamp(0, 255);
+
   /// Renders a collage to an image file.
   ///
   /// [photoPaths] must have exactly [template.photoCount] entries.
@@ -145,19 +148,19 @@ class CollageService {
       case CollageBgType.solid:
         final c = bg.color;
         img.fill(canvas,
-            color: img.ColorRgba8(c.red, c.green, c.blue, c.alpha));
+            color: img.ColorRgba8(_to8(c.r), _to8(c.g), _to8(c.b), _to8(c.a)));
       case CollageBgType.gradient:
         final end = bg.gradientEnd ?? bg.color;
         _fillGradient(
           canvas,
-          img.ColorRgba8(bg.color.red, bg.color.green, bg.color.blue, 255),
-          img.ColorRgba8(end.red, end.green, end.blue, 255),
+          img.ColorRgba8(_to8(bg.color.r), _to8(bg.color.g), _to8(bg.color.b), 255),
+          img.ColorRgba8(_to8(end.r), _to8(end.g), _to8(end.b), 255),
         );
       case CollageBgType.pattern:
         // Fallback to solid
         final c = bg.color;
         img.fill(canvas,
-            color: img.ColorRgba8(c.red, c.green, c.blue, c.alpha));
+            color: img.ColorRgba8(_to8(c.r), _to8(c.g), _to8(c.b), _to8(c.a)));
     }
   }
 

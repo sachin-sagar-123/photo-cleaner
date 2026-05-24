@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
-import '../../services/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
@@ -285,7 +284,7 @@ class _CompressionBar extends StatelessWidget {
                   label: Text(_modeLabel(m)),
                   selected: mode == m,
                   onSelected: (_) => onModeChanged(m),
-                  selectedColor: AppTheme.primary.withOpacity(0.2),
+                  selectedColor: AppTheme.primary.withValues(alpha: 0.2),
                   labelStyle: TextStyle(
                     color: mode == m
                         ? AppTheme.primary
@@ -375,8 +374,10 @@ class _FilteredPhotoList extends ConsumerWidget {
                 if (action == 'select' || action == 'deselect') {
                   onToggle(photo.id);
                 } else if (action == 'mark_important') {
+                  if (!context.mounted) return;
                   await _handleMarkImportant(context, ref, photo);
                 } else if (action == 'edit') {
+                  if (!context.mounted) return;
                   await PhotoEditorScreen.open(
                     context,
                     imagePath: photo.path,

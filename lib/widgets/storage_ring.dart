@@ -87,7 +87,7 @@ class _RingPainter extends CustomPainter {
     }
 
     const startAngle = -pi / 2;
-    final fullCircle = 2 * pi;
+    const fullCircle = 2 * pi;
 
     final duplicateSweep =
         (stats.duplicateBytes / total) * fullCircle;

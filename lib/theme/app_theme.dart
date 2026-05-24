@@ -37,7 +37,7 @@ class AppTheme {
         ),
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: surface,
-          indicatorColor: primary.withOpacity(0.2),
+          indicatorColor: primary.withValues(alpha: 0.2),
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
               return const TextStyle(
@@ -70,7 +70,7 @@ class AppTheme {
         ),
         chipTheme: ChipThemeData(
           backgroundColor: surface,
-          selectedColor: primary.withOpacity(0.2),
+          selectedColor: primary.withValues(alpha: 0.2),
           labelStyle:
               const TextStyle(color: textPrimary, fontSize: 12),
           side: const BorderSide(color: Colors.transparent),

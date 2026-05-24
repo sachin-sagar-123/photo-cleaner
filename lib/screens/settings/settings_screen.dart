@@ -22,7 +22,7 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          _SectionHeader('Security'),
+          const _SectionHeader('Security'),
           _ToggleTile(
             icon: Icons.fingerprint,
             iconColor: AppTheme.primary,
@@ -34,7 +34,7 @@ class SettingsScreen extends ConsumerWidget {
                     v,
           ),
 
-          _SectionHeader('Scanning'),
+          const _SectionHeader('Scanning'),
           _ToggleTile(
             icon: Icons.autorenew,
             iconColor: Colors.green,
@@ -86,7 +86,7 @@ class SettingsScreen extends ConsumerWidget {
                                 frequencyDays: days);
                           },
                           selectedColor:
-                              AppTheme.primary.withOpacity(0.2),
+                              AppTheme.primary.withValues(alpha: 0.2),
                           labelStyle: TextStyle(
                             color: scanFrequency == days
                                 ? AppTheme.primary
@@ -99,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
 
-          _SectionHeader('Compression'),
+          const _SectionHeader('Compression'),
           ...CompressionMode.values.map(
             (mode) => RadioListTile<CompressionMode>(
               value: mode,
@@ -118,12 +118,12 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          _SectionHeader('Google Drive'),
+          const _SectionHeader('Google Drive'),
           ListTile(
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                color: Colors.blue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.cloud_outlined,
@@ -153,7 +153,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _toggleDrive(ref, driveSignedIn),
           ),
 
-          _SectionHeader('AI Assistant'),
+          const _SectionHeader('AI Assistant'),
           // Provider selector
           ListTile(
             leading: const Icon(Icons.smart_toy_outlined, color: AppTheme.secondary),
@@ -188,7 +188,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _showAIKeyDialog(context, ref),
           ),
 
-          _SectionHeader('About'),
+          const _SectionHeader('About'),
           const ListTile(
             leading: Icon(Icons.info_outline,
                 color: AppTheme.textSecondary),
@@ -407,7 +407,7 @@ class _ToggleTile extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.1),
+          color: iconColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: iconColor, size: 20),

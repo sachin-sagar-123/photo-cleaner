@@ -107,7 +107,7 @@ class CompressionService {
         // then JPEG at 60% quality. Targets up to 90% reduction.
         try {
           img.Image target = image;
-          final maxDim = 1920;
+          const maxDim = 1920;
           if (image.width > maxDim || image.height > maxDim) {
             if (image.width >= image.height) {
               // Landscape: constrain width

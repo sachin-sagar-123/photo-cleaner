@@ -54,7 +54,7 @@ class PhotoGridTile extends StatelessWidget {
           if (selected)
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.4),
+                color: AppTheme.primary.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppTheme.primary, width: 2),
               ),
@@ -71,7 +71,7 @@ class PhotoGridTile extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondary.withOpacity(0.85),
+                  color: AppTheme.secondary.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(Icons.cloud_done,
@@ -106,7 +106,7 @@ class _IssuesBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.9),
+        color: color.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Icon(icon, size: 12, color: Colors.white),

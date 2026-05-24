@@ -263,7 +263,7 @@ class _SignInPrompt extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.cloud_outlined,
@@ -521,7 +521,7 @@ class _DrivePhotoList extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 8),
-              color: labelColor.withOpacity(0.08),
+              color: labelColor.withValues(alpha: 0.08),
               child: Row(
                 children: [
                   Icon(Icons.info_outline,
@@ -603,7 +603,7 @@ class _DriveFileTile extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected
-              ? AppTheme.error.withOpacity(0.1)
+              ? AppTheme.error.withValues(alpha: 0.1)
               : AppTheme.cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -621,7 +621,7 @@ class _DriveFileTile extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: selected
-                    ? AppTheme.error.withOpacity(0.15)
+                    ? AppTheme.error.withValues(alpha: 0.15)
                     : AppTheme.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -659,11 +659,11 @@ class _DriveFileTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       if (asset.isDriveOnly)
-                        _Badge(
+                        const _Badge(
                             label: 'Drive only',
                             color: Colors.blue),
                       if (!asset.isDriveOnly)
-                        _Badge(
+                        const _Badge(
                             label: 'Also local',
                             color: AppTheme.secondary),
                       const SizedBox(width: 4),
@@ -715,7 +715,7 @@ class _Badge extends StatelessWidget {
       padding:
           const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(label,

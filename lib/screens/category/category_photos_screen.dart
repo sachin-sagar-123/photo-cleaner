@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
-import '../../services/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
@@ -226,7 +225,7 @@ class _CategoryPhotosScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(widget.icon,
-                      color: widget.color.withOpacity(0.3), size: 64),
+                      color: widget.color.withValues(alpha: 0.3), size: 64),
                   const SizedBox(height: 16),
                   Text('No ${widget.label.toLowerCase()} photos',
                       style: const TextStyle(
@@ -255,7 +254,7 @@ class _CategoryPhotosScreenState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.color.withOpacity(0.15),
+                        color: widget.color.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -272,7 +271,7 @@ class _CategoryPhotosScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppTheme.primary.withOpacity(0.15),
+                          color: AppTheme.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -339,7 +338,7 @@ class _CategoryPhotosScreenState
                           ref.invalidate(photosByCategoryProvider(widget.category));
                           ref.invalidate(importantPhotosProvider);
                           ref.invalidate(importantCountProvider);
-                          if (!mounted) return;
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('${photo.name} marked as important'),
@@ -347,6 +346,7 @@ class _CategoryPhotosScreenState
                             ),
                           );
                         } else if (action == 'edit') {
+                          if (!context.mounted) return;
                           await PhotoEditorScreen.open(
                             context,
                             imagePath: photo.path,

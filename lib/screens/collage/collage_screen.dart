@@ -15,38 +15,24 @@ import '../../theme/app_theme.dart';
 
 class _TextOverlay {
   String text;
-  Offset position; // fractional 0..1
-  double fontSize;
-  Color color;
-  String fontFamily;
-  bool bold;
-  bool italic;
-  double rotation; // radians
+  Offset position = const Offset(0.5, 0.5);
+  double fontSize = 24;
+  Color color = Colors.white;
+  String fontFamily = 'Default';
+  bool bold = false;
+  bool italic = false;
+  double rotation = 0; // radians
 
-  _TextOverlay({
-    required this.text,
-    this.position = const Offset(0.5, 0.5),
-    this.fontSize = 24,
-    this.color = Colors.white,
-    this.fontFamily = 'Default',
-    this.bold = false,
-    this.italic = false,
-    this.rotation = 0,
-  });
+  _TextOverlay({required this.text});
 }
 
 class _StickerOverlay {
   String emoji;
-  Offset position; // fractional 0..1
-  double size;
-  double rotation; // radians
+  Offset position = const Offset(0.5, 0.5);
+  double size = 48;
+  double rotation = 0; // radians
 
-  _StickerOverlay({
-    required this.emoji,
-    this.position = const Offset(0.5, 0.5),
-    this.size = 48,
-    this.rotation = 0,
-  });
+  _StickerOverlay({required this.emoji});
 }
 
 // ── Font options ──────────────────────────────────────────────────────────
@@ -509,7 +495,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 color: selected
-                    ? AppTheme.primary.withOpacity(0.2)
+                    ? AppTheme.primary.withValues(alpha: 0.2)
                     : AppTheme.cardColor,
                 borderRadius: BorderRadius.circular(10),
                 border: selected
@@ -669,7 +655,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
               cacheWidth: 300, cacheHeight: 300)
           : Container(
               width: w, height: h,
-              color: AppTheme.cardColor.withOpacity(0.7),
+              color: AppTheme.cardColor.withValues(alpha: 0.7),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -819,7 +805,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
             itemCount: CollageBgStyles.all.length,
             itemBuilder: (ctx, i) {
               final bg = CollageBgStyles.all[i];
-              final sel = bg.color.value == _bgStyle.color.value &&
+              final sel = bg.color == _bgStyle.color &&
                   bg.type == _bgStyle.type;
               return GestureDetector(
                 onTap: () => setState(() { _bgStyle = bg; _renderedFile = null; }),
@@ -834,7 +820,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
                     color: bg.type == CollageBgType.solid ? bg.color : null,
                     border: sel
                         ? Border.all(color: AppTheme.primary, width: 2.5)
-                        : Border.all(color: AppTheme.textSecondary.withOpacity(0.3)),
+                        : Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                   ),
                 ),
               );
@@ -927,7 +913,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: sel ? AppTheme.primary.withOpacity(0.2) : AppTheme.cardColor,
+                        color: sel ? AppTheme.primary.withValues(alpha: 0.2) : AppTheme.cardColor,
                         borderRadius: BorderRadius.circular(6),
                         border: sel ? Border.all(color: AppTheme.primary) : null,
                       ),
@@ -944,7 +930,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
                 // Color dots
                 ...[Colors.white, Colors.black, Colors.red, Colors.yellow,
                     AppTheme.primary, Colors.green, Colors.pink].map((c) {
-                  final sel = overlay.color.value == c.value;
+                  final sel = overlay.color == c;
                   return GestureDetector(
                     onTap: () => setState(() {
                       overlay.color = c; _renderedFile = null;
@@ -956,7 +942,7 @@ class _CollageScreenState extends ConsumerState<CollageScreen>
                         shape: BoxShape.circle, color: c,
                         border: sel
                             ? Border.all(color: AppTheme.primary, width: 2)
-                            : Border.all(color: AppTheme.textSecondary.withOpacity(0.4)),
+                            : Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.4)),
                       ),
                     ),
                   );
@@ -1059,7 +1045,7 @@ class _TemplateMiniPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(0.3)
+      ..color = color.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..color = color
@@ -1102,7 +1088,7 @@ class _PhotoPickerSheet extends StatelessWidget {
               margin: const EdgeInsets.symmetric(vertical: 8),
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.3),
+                color: AppTheme.textSecondary.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

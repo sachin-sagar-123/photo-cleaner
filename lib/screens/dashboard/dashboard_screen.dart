@@ -227,7 +227,7 @@ class _ScanSection extends StatelessWidget {
           color: AppTheme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: AppTheme.primary.withOpacity(0.3)),
+              color: AppTheme.primary.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,7 +276,7 @@ class _ScanSection extends StatelessWidget {
                   child: Text(
                     '${progress.skipped} already scanned (skipped)',
                     style: TextStyle(
-                        color: AppTheme.secondary.withOpacity(0.8),
+                        color: AppTheme.secondary.withValues(alpha: 0.8),
                         fontSize: 11),
                   ),
                 ),
@@ -336,10 +336,10 @@ class _ScanSection extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppTheme.error.withOpacity(0.1),
+              color: AppTheme.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: AppTheme.error.withOpacity(0.3)),
+                  color: AppTheme.error.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -361,10 +361,10 @@ class _ScanSection extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppTheme.secondary.withOpacity(0.1),
+              color: AppTheme.secondary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: AppTheme.secondary.withOpacity(0.3)),
+                  color: AppTheme.secondary.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,7 +393,7 @@ class _ScanSection extends StatelessWidget {
                     child: Text(
                       '${lastProgress.skipped} unchanged photos skipped',
                       style: TextStyle(
-                          color: AppTheme.secondary.withOpacity(0.7),
+                          color: AppTheme.secondary.withValues(alpha: 0.7),
                           fontSize: 11),
                     ),
                   ),
@@ -435,7 +435,7 @@ class _ScanSection extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 foregroundColor: AppTheme.textSecondary,
                 side: BorderSide(
-                    color: AppTheme.textSecondary.withOpacity(0.3)),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                 textStyle: const TextStyle(fontSize: 13),
               ),
             ),
@@ -492,13 +492,13 @@ class _ReviewCard extends ConsumerWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primary.withOpacity(0.15),
-                  AppTheme.secondary.withOpacity(0.1),
+                  AppTheme.primary.withValues(alpha: 0.15),
+                  AppTheme.secondary.withValues(alpha: 0.1),
                 ],
               ),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: AppTheme.primary.withOpacity(0.3)),
+                  color: AppTheme.primary.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -506,7 +506,7 @@ class _ReviewCard extends ConsumerWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.2),
+                    color: AppTheme.primary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.swipe,
@@ -740,7 +740,7 @@ class _CategoryTile extends ConsumerWidget {
           color: AppTheme.cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: color.withOpacity(0.2), width: 1),
+              color: color.withValues(alpha: 0.2), width: 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -794,13 +794,13 @@ class _ImportantCard extends ConsumerWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.amber.withOpacity(0.15),
-                  Colors.orange.withOpacity(0.1),
+                  Colors.amber.withValues(alpha: 0.15),
+                  Colors.orange.withValues(alpha: 0.1),
                 ],
               ),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: Colors.amber.withOpacity(0.3)),
+                  color: Colors.amber.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -808,7 +808,7 @@ class _ImportantCard extends ConsumerWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
+                    color: Colors.amber.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.star,
@@ -868,9 +868,9 @@ class _QuickAccessCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -878,7 +878,7 @@ class _QuickAccessCard extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -893,7 +893,7 @@ class _QuickAccessCard extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Icon(Icons.arrow_forward_ios,
+            const Icon(Icons.arrow_forward_ios,
                 color: AppTheme.textSecondary, size: 14),
           ],
         ),
