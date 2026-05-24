@@ -8,8 +8,9 @@ import '../../theme/app_theme.dart';
 
 /// Full-featured photo editor powered by pro_image_editor.
 ///
-/// Features: crop, rotate, filters, tune (brightness/contrast/saturation),
-/// paint/draw, text overlay, emoji/stickers, blur.
+/// Features: crop, rotate, filters (25+ Instagram-style presets), tune
+/// (brightness/contrast/saturation/exposure/warmth/sharpness), paint/draw,
+/// text overlay, emoji/stickers, blur.
 ///
 /// Returns the saved file path on pop, or null if cancelled.
 class PhotoEditorScreen extends StatelessWidget {
@@ -45,7 +46,6 @@ class PhotoEditorScreen extends StatelessWidget {
       File(imagePath),
       callbacks: ProImageEditorCallbacks(
         onImageEditingComplete: (Uint8List bytes) async {
-          // Save edited image to app's documents directory
           final savedPath = await _saveEditedImage(bytes);
           if (context.mounted) {
             Navigator.pop(context, savedPath);
@@ -57,14 +57,16 @@ class PhotoEditorScreen extends StatelessWidget {
       ),
       configs: ProImageEditorConfigs(
         designMode: ImageEditorDesignMode.material,
-        imageEditorTheme: ImageEditorTheme(
-          background: AppTheme.background,
-          appBarBackgroundColor: AppTheme.cardColor,
-          appBarForegroundColor: AppTheme.textPrimary,
-          bottomBarBackgroundColor: AppTheme.cardColor,
-          uiOverlayStyle: const SystemUiOverlayStyle(
-            statusBarBrightness: Brightness.dark,
-            statusBarIconBrightness: Brightness.light,
+        theme: ThemeData.dark().copyWith(
+          scaffoldBackgroundColor: AppTheme.background,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: AppTheme.cardColor,
+            foregroundColor: AppTheme.textPrimary,
+          ),
+          colorScheme: const ColorScheme.dark(
+            primary: AppTheme.primary,
+            secondary: AppTheme.secondary,
+            surface: AppTheme.surface,
           ),
         ),
         i18n: const I18n(
@@ -92,14 +94,14 @@ class PhotoEditorScreen extends StatelessWidget {
             bottomNavigationBarText: 'Tune',
           ),
         ),
-        paintEditorConfigs: const PaintEditorConfigs(
-          hasColorPicker: true,
-          hasLineWidthPicker: true,
+        paintEditor: const PaintEditorConfigs(
+          canChangeLineWidth: true,
+          canChangeOpacity: true,
           editorMinScale: 0.1,
           editorMaxScale: 5.0,
         ),
-        textEditorConfigs: const TextEditorConfigs(
-          whatsAppCustomTextStyles: [
+        textEditor: const TextEditorConfigs(
+          customTextStyles: [
             TextStyle(fontWeight: FontWeight.bold),
             TextStyle(fontStyle: FontStyle.italic),
             TextStyle(
@@ -108,12 +110,11 @@ class PhotoEditorScreen extends StatelessWidget {
             ),
           ],
         ),
-        cropRotateEditorConfigs: const CropRotateEditorConfigs(
+        cropRotateEditor: const CropRotateEditorConfigs(
           canChangeAspectRatio: true,
-          initAspectRatio: CropAspectRatios.custom,
           aspectRatios: [
-            AspectRatioItem(text: 'Free', value: CropAspectRatios.custom),
-            AspectRatioItem(text: 'Original', value: CropAspectRatios.original),
+            AspectRatioItem(text: 'Free', value: -1),
+            AspectRatioItem(text: 'Original', value: 0.0),
             AspectRatioItem(text: '1:1', value: 1),
             AspectRatioItem(text: '4:3', value: 4 / 3),
             AspectRatioItem(text: '3:4', value: 3 / 4),
@@ -121,55 +122,97 @@ class PhotoEditorScreen extends StatelessWidget {
             AspectRatioItem(text: '9:16', value: 9 / 16),
           ],
         ),
-        filterEditorConfigs: FilterEditorConfigs(
-          filterList: _buildFilterList(),
+        filterEditor: FilterEditorConfigs(
+          filterList: [
+            PresetFilters.none,
+            PresetFilters.clarendon,
+            PresetFilters.gingham,
+            PresetFilters.moon,
+            PresetFilters.lark,
+            PresetFilters.reyes,
+            PresetFilters.juno,
+            PresetFilters.slumber,
+            PresetFilters.crema,
+            PresetFilters.ludwig,
+            PresetFilters.aden,
+            PresetFilters.perpetua,
+            PresetFilters.amaro,
+            PresetFilters.mayfair,
+            PresetFilters.rise,
+            PresetFilters.hudson,
+            PresetFilters.valencia,
+            PresetFilters.xProII,
+            PresetFilters.sierra,
+            PresetFilters.willow,
+            PresetFilters.loFi,
+            PresetFilters.inkwell,
+            PresetFilters.nashville,
+            PresetFilters.stinson,
+            PresetFilters.vesper,
+          ],
         ),
-        blurEditorConfigs: const BlurEditorConfigs(
+        blurEditor: const BlurEditorConfigs(
           maxBlur: 25.0,
         ),
-        tuneEditorConfigs: const TuneEditorConfigs(
-          tuneAdjustmentList: [
+        tuneEditor: TuneEditorConfigs(
+          tuneAdjustmentOptions: [
             TuneAdjustmentItem(
               id: 'brightness',
               label: 'Brightness',
               icon: Icons.brightness_6,
-              min: -100,
-              max: 100,
+              min: -0.5,
+              max: 0.5,
+              divisions: 200,
+              labelMultiplier: 200,
+              toMatrix: ColorFilterAddons.brightness,
             ),
             TuneAdjustmentItem(
               id: 'contrast',
               label: 'Contrast',
               icon: Icons.contrast,
-              min: -100,
-              max: 100,
+              min: -0.5,
+              max: 0.5,
+              divisions: 200,
+              labelMultiplier: 200,
+              toMatrix: ColorFilterAddons.contrast,
             ),
             TuneAdjustmentItem(
               id: 'saturation',
               label: 'Saturation',
               icon: Icons.palette,
-              min: -100,
-              max: 100,
+              min: -0.5,
+              max: 0.5,
+              divisions: 200,
+              labelMultiplier: 200,
+              toMatrix: ColorFilterAddons.saturation,
             ),
             TuneAdjustmentItem(
               id: 'exposure',
               label: 'Exposure',
               icon: Icons.exposure,
-              min: -100,
-              max: 100,
+              min: -1,
+              max: 1,
+              divisions: 200,
+              toMatrix: ColorFilterAddons.exposure,
             ),
             TuneAdjustmentItem(
-              id: 'warmth',
+              id: 'temperature',
               label: 'Warmth',
               icon: Icons.thermostat,
-              min: -100,
-              max: 100,
+              min: -0.5,
+              max: 0.5,
+              divisions: 200,
+              labelMultiplier: 200,
+              toMatrix: ColorFilterAddons.temperature,
             ),
             TuneAdjustmentItem(
               id: 'sharpness',
               label: 'Sharpness',
               icon: Icons.deblur,
               min: 0,
-              max: 100,
+              max: 1,
+              divisions: 100,
+              toMatrix: ColorFilterAddons.sharpness,
             ),
           ],
         ),
@@ -186,7 +229,8 @@ class PhotoEditorScreen extends StatelessWidget {
 
     final baseName = fileName ?? p.basenameWithoutExtension(imagePath);
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final savedPath = p.join(editedDir.path, '${baseName}_edited_$timestamp.jpg');
+    final savedPath =
+        p.join(editedDir.path, '${baseName}_edited_$timestamp.jpg');
 
     await File(savedPath).writeAsBytes(bytes);
 
@@ -204,238 +248,5 @@ class PhotoEditorScreen extends StatelessWidget {
     }
 
     return savedPath;
-  }
-
-  /// Build the filter list with Instagram-style presets.
-  static List<FilterModel> _buildFilterList() {
-    return [
-      // No filter
-      FilterModel(
-        name: 'Original',
-        filters: [],
-      ),
-      // Clarendon — boosts contrast and saturation, cool shadows
-      FilterModel(
-        name: 'Clarendon',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(0.15),
-          ColorFilterAddons.saturation(0.2),
-        ],
-      ),
-      // Gingham — soft, vintage, slightly desaturated
-      FilterModel(
-        name: 'Gingham',
-        filters: [
-          ColorFilterAddons.brightness(0.05),
-          ColorFilterAddons.contrast(-0.05),
-          ColorFilterAddons.saturation(-0.15),
-          ColorFilterAddons.hue(0.02),
-        ],
-      ),
-      // Moon — B&W with slight blue tint
-      FilterModel(
-        name: 'Moon',
-        filters: [
-          ColorFilterAddons.saturation(-1.0),
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(0.1),
-        ],
-      ),
-      // Lark — bright, warm, desaturated blues
-      FilterModel(
-        name: 'Lark',
-        filters: [
-          ColorFilterAddons.brightness(0.12),
-          ColorFilterAddons.contrast(0.05),
-          ColorFilterAddons.saturation(-0.1),
-        ],
-      ),
-      // Reyes — vintage, dusty, low contrast
-      FilterModel(
-        name: 'Reyes',
-        filters: [
-          ColorFilterAddons.brightness(0.15),
-          ColorFilterAddons.contrast(-0.1),
-          ColorFilterAddons.saturation(-0.2),
-        ],
-      ),
-      // Juno — warm tones, boosted reds/yellows
-      FilterModel(
-        name: 'Juno',
-        filters: [
-          ColorFilterAddons.contrast(0.1),
-          ColorFilterAddons.saturation(0.25),
-          ColorFilterAddons.brightness(0.05),
-        ],
-      ),
-      // Slumber — desaturated, warm, dreamy
-      FilterModel(
-        name: 'Slumber',
-        filters: [
-          ColorFilterAddons.brightness(0.08),
-          ColorFilterAddons.saturation(-0.25),
-          ColorFilterAddons.contrast(-0.05),
-        ],
-      ),
-      // Crema — creamy, warm, slightly desaturated
-      FilterModel(
-        name: 'Crema',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.saturation(-0.1),
-          ColorFilterAddons.contrast(-0.05),
-        ],
-      ),
-      // Ludwig — warm, slight vignette feel
-      FilterModel(
-        name: 'Ludwig',
-        filters: [
-          ColorFilterAddons.contrast(0.12),
-          ColorFilterAddons.saturation(0.05),
-          ColorFilterAddons.brightness(0.03),
-        ],
-      ),
-      // Aden — soft, pastel, warm
-      FilterModel(
-        name: 'Aden',
-        filters: [
-          ColorFilterAddons.brightness(0.12),
-          ColorFilterAddons.contrast(-0.08),
-          ColorFilterAddons.saturation(-0.15),
-          ColorFilterAddons.hue(0.03),
-        ],
-      ),
-      // Perpetua — soft green tint, bright
-      FilterModel(
-        name: 'Perpetua',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.saturation(0.1),
-          ColorFilterAddons.hue(-0.05),
-        ],
-      ),
-      // Amaro — bright, warm, vintage
-      FilterModel(
-        name: 'Amaro',
-        filters: [
-          ColorFilterAddons.brightness(0.15),
-          ColorFilterAddons.contrast(0.1),
-          ColorFilterAddons.saturation(0.1),
-        ],
-      ),
-      // Mayfair — warm pink tint, soft
-      FilterModel(
-        name: 'Mayfair',
-        filters: [
-          ColorFilterAddons.brightness(0.08),
-          ColorFilterAddons.contrast(0.05),
-          ColorFilterAddons.saturation(0.1),
-          ColorFilterAddons.hue(0.02),
-        ],
-      ),
-      // Rise — warm, golden, soft
-      FilterModel(
-        name: 'Rise',
-        filters: [
-          ColorFilterAddons.brightness(0.12),
-          ColorFilterAddons.contrast(0.05),
-          ColorFilterAddons.saturation(0.08),
-        ],
-      ),
-      // Hudson — cool, icy, high contrast
-      FilterModel(
-        name: 'Hudson',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(0.15),
-          ColorFilterAddons.saturation(-0.1),
-          ColorFilterAddons.hue(-0.03),
-        ],
-      ),
-      // Valencia — warm, faded, vintage
-      FilterModel(
-        name: 'Valencia',
-        filters: [
-          ColorFilterAddons.brightness(0.08),
-          ColorFilterAddons.contrast(-0.05),
-          ColorFilterAddons.saturation(0.1),
-          ColorFilterAddons.hue(0.03),
-        ],
-      ),
-      // X-Pro II — high contrast, warm vignette
-      FilterModel(
-        name: 'X-Pro II',
-        filters: [
-          ColorFilterAddons.contrast(0.2),
-          ColorFilterAddons.saturation(0.15),
-          ColorFilterAddons.brightness(-0.05),
-        ],
-      ),
-      // Sierra — soft, slightly desaturated
-      FilterModel(
-        name: 'Sierra',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(-0.05),
-          ColorFilterAddons.saturation(-0.1),
-        ],
-      ),
-      // Willow — soft B&W with warm tint
-      FilterModel(
-        name: 'Willow',
-        filters: [
-          ColorFilterAddons.saturation(-0.8),
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(-0.05),
-        ],
-      ),
-      // Lo-Fi — high saturation, high contrast, bold
-      FilterModel(
-        name: 'Lo-Fi',
-        filters: [
-          ColorFilterAddons.contrast(0.2),
-          ColorFilterAddons.saturation(0.3),
-          ColorFilterAddons.brightness(-0.05),
-        ],
-      ),
-      // Inkwell — pure B&W, high contrast
-      FilterModel(
-        name: 'Inkwell',
-        filters: [
-          ColorFilterAddons.saturation(-1.0),
-          ColorFilterAddons.contrast(0.15),
-        ],
-      ),
-      // Nashville — warm, pink/purple tint, vintage
-      FilterModel(
-        name: 'Nashville',
-        filters: [
-          ColorFilterAddons.brightness(0.12),
-          ColorFilterAddons.contrast(0.05),
-          ColorFilterAddons.saturation(0.15),
-          ColorFilterAddons.hue(0.04),
-        ],
-      ),
-      // Stinson — soft, slightly warm
-      FilterModel(
-        name: 'Stinson',
-        filters: [
-          ColorFilterAddons.brightness(0.1),
-          ColorFilterAddons.contrast(-0.03),
-          ColorFilterAddons.saturation(-0.05),
-        ],
-      ),
-      // Vesper — golden hour, warm
-      FilterModel(
-        name: 'Vesper',
-        filters: [
-          ColorFilterAddons.brightness(0.08),
-          ColorFilterAddons.contrast(0.08),
-          ColorFilterAddons.saturation(0.12),
-          ColorFilterAddons.hue(0.04),
-        ],
-      ),
-    ];
   }
 }
