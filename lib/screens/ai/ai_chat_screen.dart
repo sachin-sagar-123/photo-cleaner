@@ -40,14 +40,15 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
   void initState() {
     super.initState();
     _addSystemGreeting();
-    if (widget.initialImagePath != null) {
-      _attachedImage = widget.initialImagePath;
-      // Auto-analyze the initial image
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Load persisted AI config
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(aiServiceProvider).load();
+      if (widget.initialImagePath != null) {
+        _attachedImage = widget.initialImagePath;
         _sendMessage('Analyze this photo. Tell me about it — what it shows, '
             'its quality, and whether I should keep or delete it.');
-      });
-    }
+      }
+    });
   }
 
   @override
@@ -59,7 +60,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
 
   void _addSystemGreeting() {
     _messages.add(_ChatMessage(
-      text: 'Hi! I\'m your AI photo assistant powered by Gemini. '
+      text: 'Hi! I\'m your AI photo assistant. '
           'I can help you:\n\n'
           '📸 Analyze and describe your photos\n'
           '🏷️ Categorize photos automatically\n'
@@ -85,8 +86,8 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty && _attachedImage == null) return;
 
-    final gemini = ref.read(geminiServiceProvider);
-    if (!gemini.isConfigured) {
+    final ai = ref.read(aiServiceProvider);
+    if (!ai.isConfigured) {
       _showApiKeyDialog();
       return;
     }
@@ -106,7 +107,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
     _attachedImage = null;
 
     try {
-      final response = await gemini.chat(
+      final response = await ai.chat(
         text.trim(),
         imagePath: imagePath,
       );
@@ -162,28 +163,29 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
   }
 
   void _showApiKeyDialog() {
+    final ai = ref.read(aiServiceProvider);
     final keyController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.cardColor,
-        title: const Text('Gemini API Key',
-            style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('${ai.provider.displayName} API Key',
+            style: const TextStyle(color: AppTheme.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Enter your Google Gemini API key.\n'
-              'Get one free at ai.google.dev',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            Text(
+              'Enter your ${ai.provider.displayName} API key.\n'
+              'Get one at ${ai.provider.keyUrl}',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: keyController,
               style: const TextStyle(color: AppTheme.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'AIza...',
-                hintStyle: TextStyle(color: AppTheme.textSecondary),
+              decoration: InputDecoration(
+                hintText: ai.provider.keyHint,
+                hintStyle: const TextStyle(color: AppTheme.textSecondary),
               ),
             ),
           ],
@@ -194,21 +196,18 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final key = keyController.text.trim();
               if (key.isNotEmpty) {
-                ref.read(geminiServiceProvider).configure(key);
-                // Persist the key
-                ref.read(geminiApiKeyProvider.notifier).state = key;
+                await ai.setApiKey(ai.provider, key);
               }
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    keyController.dispose();
   }
 
   @override
@@ -221,7 +220,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
             icon: const Icon(Icons.refresh),
             tooltip: 'New conversation',
             onPressed: () {
-              ref.read(geminiServiceProvider).resetChat();
+              ref.read(aiServiceProvider).resetChat();
               setState(() {
                 _messages.clear();
                 _addSystemGreeting();

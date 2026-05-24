@@ -47,7 +47,7 @@ dependencies:
   # Background work
   workmanager: ^0.5.2
 
-  # Google Gemini AI
+  # AI providers
   google_generative_ai: ^0.4.6
 
   # Utilities

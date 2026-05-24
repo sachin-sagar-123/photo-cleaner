@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
+import '../../services/ai_service.dart';
 import '../../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -152,17 +153,31 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _toggleDrive(ref, driveSignedIn),
           ),
 
-          _SectionHeader('Gemini AI'),
+          _SectionHeader('AI Assistant'),
+          // Provider selector
           ListTile(
-            leading: const Icon(Icons.auto_awesome, color: AppTheme.secondary),
+            leading: const Icon(Icons.smart_toy_outlined, color: AppTheme.secondary),
+            title: const Text('AI Provider',
+                style: TextStyle(color: AppTheme.textPrimary)),
+            subtitle: Text(
+              ref.watch(aiServiceProvider).provider.displayName,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppTheme.textSecondary),
+            onTap: () => _showProviderPicker(context, ref),
+          ),
+          // API key
+          ListTile(
+            leading: const Icon(Icons.key, color: AppTheme.secondary),
             title: const Text('API Key',
                 style: TextStyle(color: AppTheme.textPrimary)),
             subtitle: Text(
-              ref.watch(geminiServiceProvider).isConfigured
+              ref.watch(aiServiceProvider).isConfigured
                   ? 'Configured'
                   : 'Not set — tap to add',
               style: TextStyle(
-                color: ref.watch(geminiServiceProvider).isConfigured
+                color: ref.watch(aiServiceProvider).isConfigured
                     ? AppTheme.secondary
                     : AppTheme.textSecondary,
                 fontSize: 12,
@@ -170,7 +185,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
             trailing: const Icon(Icons.chevron_right,
                 color: AppTheme.textSecondary),
-            onTap: () => _showGeminiKeyDialog(context, ref),
+            onTap: () => _showAIKeyDialog(context, ref),
           ),
 
           _SectionHeader('About'),
@@ -196,29 +211,60 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showGeminiKeyDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
+  void _showProviderPicker(BuildContext context, WidgetRef ref) {
+    final ai = ref.read(aiServiceProvider);
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: AppTheme.cardColor,
+        title: const Text('Select AI Provider',
+            style: TextStyle(color: AppTheme.textPrimary)),
+        children: AIProvider.values.map((p) => RadioListTile<AIProvider>(
+          value: p,
+          groupValue: ai.provider,
+          title: Text(p.displayName,
+              style: const TextStyle(color: AppTheme.textPrimary)),
+          subtitle: Text('Get key at ${p.keyUrl}',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+          activeColor: AppTheme.primary,
+          onChanged: (v) async {
+            if (v != null) {
+              await ai.setProvider(v);
+            }
+            if (ctx.mounted) Navigator.pop(ctx);
+          },
+        )).toList(),
+      ),
+    );
+  }
+
+  void _showAIKeyDialog(BuildContext context, WidgetRef ref) {
+    final ai = ref.read(aiServiceProvider);
+    final provider = ai.provider;
+    final controller = TextEditingController(
+      text: ai.getApiKey(provider) ?? '',
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.cardColor,
-        title: const Text('Gemini API Key',
-            style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('${provider.displayName} API Key',
+            style: const TextStyle(color: AppTheme.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Get a free API key at ai.google.dev\n'
+            Text(
+              'Get a key at ${provider.keyUrl}\n'
               'Used for photo captions, categorization, and AI chat.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               style: const TextStyle(color: AppTheme.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'AIza...',
-                hintStyle: TextStyle(color: AppTheme.textSecondary),
+              decoration: InputDecoration(
+                hintText: provider.keyHint,
+                hintStyle: const TextStyle(color: AppTheme.textSecondary),
               ),
             ),
           ],
@@ -229,13 +275,12 @@ class SettingsScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final key = controller.text.trim();
               if (key.isNotEmpty) {
-                ref.read(geminiServiceProvider).configure(key);
-                ref.read(geminiApiKeyProvider.notifier).state = key;
+                await ai.setApiKey(provider, key);
               }
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Save'),
           ),
