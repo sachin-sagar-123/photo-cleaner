@@ -27,6 +27,9 @@ class PhotoAsset {
   // Review state — user marked this photo as OK, skip in future scans
   final bool isReviewed;
 
+  // Important flag — user rescued this photo from junk/blurry
+  final bool isImportant;
+
   const PhotoAsset({
     required this.id,
     required this.path,
@@ -44,6 +47,7 @@ class PhotoAsset {
     this.driveMd5,
     this.isDriveOnly = false,
     this.isReviewed = false,
+    this.isImportant = false,
   });
 
   bool get hasIssues => issues.isNotEmpty;
@@ -54,6 +58,7 @@ class PhotoAsset {
   bool get isLocal => path.isNotEmpty;
 
   PhotoAsset copyWith({
+    String? path,
     PhotoCategory? category,
     List<QualityIssue>? issues,
     String? suggestedName,
@@ -64,10 +69,11 @@ class PhotoAsset {
     String? driveMd5,
     bool? isDriveOnly,
     bool? isReviewed,
+    bool? isImportant,
   }) {
     return PhotoAsset(
       id: id,
-      path: path,
+      path: path ?? this.path,
       name: name,
       sizeBytes: sizeBytes,
       createdAt: createdAt,
@@ -82,6 +88,7 @@ class PhotoAsset {
       driveMd5: driveMd5 ?? this.driveMd5,
       isDriveOnly: isDriveOnly ?? this.isDriveOnly,
       isReviewed: isReviewed ?? this.isReviewed,
+      isImportant: isImportant ?? this.isImportant,
     );
   }
 
@@ -101,6 +108,7 @@ class PhotoAsset {
         'drive_md5': driveMd5,
         'is_drive_only': isDriveOnly ? 1 : 0,
         'is_reviewed': isReviewed ? 1 : 0,
+        'is_important': isImportant ? 1 : 0,
       };
 
   factory PhotoAsset.fromMap(Map<String, dynamic> map) => PhotoAsset(
@@ -125,5 +133,6 @@ class PhotoAsset {
         driveMd5: map['drive_md5'] as String?,
         isDriveOnly: ((map['is_drive_only'] as int?) ?? 0) == 1,
         isReviewed: ((map['is_reviewed'] as int?) ?? 0) == 1,
+        isImportant: ((map['is_important'] as int?) ?? 0) == 1,
       );
 }

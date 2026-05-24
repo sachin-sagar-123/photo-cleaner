@@ -32,3 +32,8 @@ android/key.properties
 
 # Logs
 *.log
+
+# Temp artifacts
+*.zip
+photo-cleaner/
+.devcontainer/

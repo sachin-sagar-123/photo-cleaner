@@ -195,6 +195,60 @@ class PhotoPreview extends StatelessWidget {
                     ),
                   ),
 
+                  // Edit button — opens full photo editor
+                  if (asset.path.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        onPressed: () =>
+                            Navigator.pop(context, 'edit'),
+                        icon: const Icon(Icons.edit_outlined,
+                            color: AppTheme.primary, size: 24),
+                        tooltip: 'Edit photo',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              AppTheme.primary.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+
+                  // Mark Important — rescue from junk/blurry
+                  if (asset.issues.contains(QualityIssue.junk) ||
+                      asset.issues.contains(QualityIssue.blurry))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        onPressed: () =>
+                            Navigator.pop(context, 'mark_important'),
+                        icon: const Icon(Icons.star_outline,
+                            color: Colors.amber, size: 24),
+                        tooltip: 'Mark as important',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              Colors.amber.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+
+                  // Mark Important — for any photo (not just junk/blurry)
+                  if (!asset.issues.contains(QualityIssue.junk) &&
+                      !asset.issues.contains(QualityIssue.blurry) &&
+                      !asset.isImportant)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        onPressed: () =>
+                            Navigator.pop(context, 'mark_important'),
+                        icon: const Icon(Icons.star_outline,
+                            color: Colors.amber, size: 22),
+                        tooltip: 'Mark as important',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              Colors.amber.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+
                   // Select / Deselect for deletion
                   if (isSelected)
                     ElevatedButton.icon(

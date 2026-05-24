@@ -9,3 +9,4 @@ export 'scanner_service.dart';
 export 'collage_service.dart';
 export 'scan_preferences_service.dart';
 export 'background_scan_service.dart';
+export 'important_service.dart';

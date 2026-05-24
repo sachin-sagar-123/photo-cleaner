@@ -9,27 +9,16 @@ import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
 import '../editor/photo_editor_screen.dart';
 
-class CategoryPhotosScreen extends ConsumerStatefulWidget {
-  final PhotoCategory category;
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  const CategoryPhotosScreen({
-    super.key,
-    required this.category,
-    required this.label,
-    required this.color,
-    required this.icon,
-  });
+class ImportantPhotosScreen extends ConsumerStatefulWidget {
+  const ImportantPhotosScreen({super.key});
 
   @override
-  ConsumerState<CategoryPhotosScreen> createState() =>
-      _CategoryPhotosScreenState();
+  ConsumerState<ImportantPhotosScreen> createState() =>
+      _ImportantPhotosScreenState();
 }
 
-class _CategoryPhotosScreenState
-    extends ConsumerState<CategoryPhotosScreen> {
+class _ImportantPhotosScreenState
+    extends ConsumerState<ImportantPhotosScreen> {
   final Set<String> _selected = {};
   bool _selectMode = false;
 
@@ -45,18 +34,64 @@ class _CategoryPhotosScreenState
     });
   }
 
-  void _selectAll(List<PhotoAsset> photos) {
-    setState(() {
-      _selected.addAll(photos.map((p) => p.id));
-      _selectMode = true;
-    });
-  }
-
   void _clearSelection() {
     setState(() {
       _selected.clear();
       _selectMode = false;
     });
+  }
+
+  Future<void> _removeFromImportant() async {
+    if (_selected.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardColor,
+        title: const Text('Remove from Important',
+            style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text(
+          'Remove ${_selected.length} photo${_selected.length > 1 ? 's' : ''} from Important? The files will remain on your device.',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove',
+                style: TextStyle(color: Colors.amber)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    final db = ref.read(databaseServiceProvider);
+    for (final id in _selected) {
+      await db.markImportant(id, important: false);
+    }
+
+    if (!mounted) return;
+    final count = _selected.length;
+    setState(() {
+      _selected.clear();
+      _selectMode = false;
+    });
+    ref.invalidate(importantPhotosProvider);
+    ref.invalidate(importantCountProvider);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            '$count photo${count > 1 ? 's' : ''} removed from Important'),
+        backgroundColor: AppTheme.secondary,
+      ),
+    );
   }
 
   Future<void> _deleteSelected() async {
@@ -69,7 +104,7 @@ class _CategoryPhotosScreenState
         title: const Text('Delete Photos',
             style: TextStyle(color: AppTheme.textPrimary)),
         content: Text(
-          'Delete ${_selected.length} photo${_selected.length > 1 ? 's' : ''}? This cannot be undone.',
+          'Permanently delete ${_selected.length} photo${_selected.length > 1 ? 's' : ''}?',
           style: const TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
@@ -106,108 +141,37 @@ class _CategoryPhotosScreenState
       _selected.clear();
       _selectMode = false;
     });
-    ref.invalidate(photosByCategoryProvider(widget.category));
-    ref.invalidate(photosCountByCategoryProvider(widget.category));
-    ref.invalidate(storageStatsProvider);
-    ref.invalidate(unreviewedCountProvider);
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${photos.length} photo${photos.length > 1 ? 's' : ''} deleted'),
-        backgroundColor: AppTheme.secondary,
-      ),
-    );
-  }
-
-  Future<void> _markImportant() async {
-    if (_selected.isEmpty) return;
-
-    final db = ref.read(databaseServiceProvider);
-    final importantService = ref.read(importantServiceProvider);
-    final photos = await db.getPhotosByIds(_selected.toList());
-
-    if (!mounted) return;
-    final count = photos.length;
-    await importantService.markMultipleAsImportant(photos);
-
-    if (!mounted) return;
-    setState(() {
-      _selected.clear();
-      _selectMode = false;
-    });
-    ref.invalidate(photosByCategoryProvider(widget.category));
-    ref.invalidate(photosCountByCategoryProvider(widget.category));
     ref.invalidate(importantPhotosProvider);
     ref.invalidate(importantCountProvider);
     ref.invalidate(storageStatsProvider);
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            '$count photo${count > 1 ? 's' : ''} marked as important'),
-        backgroundColor: Colors.amber.shade700,
-      ),
-    );
-  }
-
-  Future<void> _markReviewed() async {
-    if (_selected.isEmpty) return;
-
-    final db = ref.read(databaseServiceProvider);
-    await db.markAllReviewed(_selected.toList());
-
-    if (!mounted) return;
-    final count = _selected.length;
-    setState(() {
-      _selected.clear();
-      _selectMode = false;
-    });
-    ref.invalidate(photosByCategoryProvider(widget.category));
-    ref.invalidate(unreviewedCountProvider);
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$count photo${count > 1 ? 's' : ''} marked as reviewed'),
-        backgroundColor: AppTheme.secondary,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final photosAsync =
-        ref.watch(photosByCategoryProvider(widget.category));
+    final photosAsync = ref.watch(importantPhotosProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
+        title: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(widget.icon, color: widget.color, size: 22),
-            const SizedBox(width: 8),
-            Text(widget.label),
+            Icon(Icons.star, color: Colors.amber, size: 22),
+            SizedBox(width: 8),
+            Text('Important'),
           ],
         ),
         actions: [
           if (_selectMode) ...[
             IconButton(
-              icon: const Icon(Icons.star_outline,
+              icon: const Icon(Icons.star_border,
                   color: Colors.amber),
-              tooltip: 'Mark as important',
-              onPressed: _markImportant,
-            ),
-            IconButton(
-              icon: const Icon(Icons.check_circle_outline),
-              tooltip: 'Mark reviewed',
-              onPressed: _markReviewed,
+              tooltip: 'Remove from Important',
+              onPressed: _removeFromImportant,
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline,
                   color: AppTheme.error),
-              tooltip: 'Delete selected',
+              tooltip: 'Delete',
               onPressed: _deleteSelected,
             ),
             IconButton(
@@ -221,22 +185,25 @@ class _CategoryPhotosScreenState
       body: photosAsync.when(
         data: (photos) {
           if (photos.isEmpty) {
-            return Center(
+            return const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.icon,
-                      color: widget.color.withOpacity(0.3), size: 64),
-                  const SizedBox(height: 16),
-                  Text('No ${widget.label.toLowerCase()} photos',
-                      style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 15)),
-                  const SizedBox(height: 8),
-                  const Text('Scan your photos to categorize them',
+                  Icon(Icons.star_outline,
+                      color: Colors.amber, size: 64),
+                  SizedBox(height: 16),
+                  Text('No important photos yet',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500)),
+                  SizedBox(height: 8),
+                  Text(
+                      'Mark photos as important from Cleanup\nor any category view',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                           color: AppTheme.textSecondary,
-                          fontSize: 12)),
+                          fontSize: 13)),
                 ],
               ),
             );
@@ -244,7 +211,6 @@ class _CategoryPhotosScreenState
 
           return Column(
             children: [
-              // Header bar with count and select all
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 10),
@@ -255,13 +221,13 @@ class _CategoryPhotosScreenState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.color.withOpacity(0.15),
+                        color: Colors.amber.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '${photos.length} photo${photos.length > 1 ? 's' : ''}',
-                        style: TextStyle(
-                            color: widget.color,
+                        style: const TextStyle(
+                            color: Colors.amber,
                             fontSize: 12,
                             fontWeight: FontWeight.w600),
                       ),
@@ -285,26 +251,15 @@ class _CategoryPhotosScreenState
                       ),
                     ],
                     const Spacer(),
-                    TextButton(
-                      onPressed: () {
-                        if (_selected.length == photos.length) {
-                          _clearSelection();
-                        } else {
-                          _selectAll(photos);
-                        }
-                      },
-                      child: Text(
-                        _selected.length == photos.length
-                            ? 'Deselect All'
-                            : 'Select All',
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                    const Text(
+                      'Saved in DCIM/PhotoCleaner Important',
+                      style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 10),
                     ),
                   ],
                 ),
               ),
-
-              // Photo grid
               Expanded(
                 child: GridView.builder(
                   padding: const EdgeInsets.all(8),
@@ -328,25 +283,9 @@ class _CategoryPhotosScreenState
                         final action = await PhotoPreview.show(
                           context,
                           asset: photo,
-                          isSelected: _selected.contains(photo.id),
+                          isSelected: false,
                         );
-                        if (action == 'select' ||
-                            action == 'deselect') {
-                          _toggleSelection(photo.id);
-                        } else if (action == 'mark_important') {
-                          final svc = ref.read(importantServiceProvider);
-                          await svc.markAsImportant(photo);
-                          ref.invalidate(photosByCategoryProvider(widget.category));
-                          ref.invalidate(importantPhotosProvider);
-                          ref.invalidate(importantCountProvider);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${photo.name} marked as important'),
-                              backgroundColor: Colors.amber.shade700,
-                            ),
-                          );
-                        } else if (action == 'edit') {
+                        if (action == 'edit' && photo.path.isNotEmpty) {
                           await PhotoEditorScreen.open(
                             context,
                             imagePath: photo.path,

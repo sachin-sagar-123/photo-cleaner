@@ -18,7 +18,7 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     return openDatabase(
       join(dbPath, 'photo_cleaner.db'),
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -35,6 +35,10 @@ class DatabaseService {
     if (oldVersion < 3) {
       await db.execute(
           'ALTER TABLE photo_assets ADD COLUMN is_reviewed INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+          'ALTER TABLE photo_assets ADD COLUMN is_important INTEGER NOT NULL DEFAULT 0');
     }
   }
 
@@ -55,7 +59,8 @@ class DatabaseService {
         drive_file_id TEXT,
         drive_md5 TEXT,
         is_drive_only INTEGER NOT NULL DEFAULT 0,
-        is_reviewed INTEGER NOT NULL DEFAULT 0
+        is_reviewed INTEGER NOT NULL DEFAULT 0,
+        is_important INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -305,6 +310,86 @@ class DatabaseService {
       where: 'is_backed_up = 1',
     );
     return rows.map(PhotoAsset.fromMap).toList();
+  }
+
+  /// Remove a specific issue from a photo and mark as important.
+  /// Also marks the photo as reviewed so it won't reappear in cleanup.
+  Future<void> removeIssue(String id, QualityIssue issue) async {
+    final database = await db;
+    final rows = await database.query(
+      'photo_assets',
+      columns: ['issues'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (rows.isEmpty) return;
+
+    final currentIssues = (rows.first['issues'] as String?)
+            ?.split(',')
+            .where((s) => s.isNotEmpty)
+            .map((s) => int.parse(s))
+            .toList() ??
+        [];
+    currentIssues.remove(issue.index);
+
+    await database.update(
+      'photo_assets',
+      {
+        'issues': currentIssues.join(','),
+        'is_reviewed': 1,
+        'is_important': 1,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Mark a photo as important (without removing issues).
+  Future<void> markImportant(String id, {bool important = true}) async {
+    final database = await db;
+    await database.update(
+      'photo_assets',
+      {'is_important': important ? 1 : 0, 'is_reviewed': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Update the file path after moving to Important folder.
+  Future<void> updatePhotoPath(String id, String newPath) async {
+    final database = await db;
+    await database.update(
+      'photo_assets',
+      {'path': newPath},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Remove a specific issue from multiple photos at once.
+  Future<void> removeIssueFromPhotos(
+      List<String> ids, QualityIssue issue) async {
+    for (final id in ids) {
+      await removeIssue(id, issue);
+    }
+  }
+
+  /// Get all important photos.
+  Future<List<PhotoAsset>> getImportantPhotos() async {
+    final database = await db;
+    final rows = await database.query(
+      'photo_assets',
+      where: 'is_important = 1',
+      orderBy: 'created_at DESC',
+    );
+    return rows.map(PhotoAsset.fromMap).toList();
+  }
+
+  Future<int> getImportantCount() async {
+    final database = await db;
+    final result = await database.rawQuery(
+        'SELECT COUNT(*) as cnt FROM photo_assets WHERE is_important = 1');
+    return result.first['cnt'] as int;
   }
 
   Future<void> markReviewed(String id, {bool reviewed = true}) async {

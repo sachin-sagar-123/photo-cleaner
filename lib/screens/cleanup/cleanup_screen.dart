@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
+import '../../services/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_grid_tile.dart';
 import '../../widgets/photo_preview.dart';
+import '../editor/photo_editor_screen.dart';
 
 class CleanupScreen extends ConsumerStatefulWidget {
   const CleanupScreen({super.key});
@@ -39,7 +41,15 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
       appBar: AppBar(
         title: const Text('Cleanup'),
         actions: [
-          if (_selected.isNotEmpty)
+          if (_selected.isNotEmpty) ...[
+            // "Mark Important" — removes the issue flag and marks reviewed
+            if (_tabController.index < 2) // Junk or Blurry tab
+              IconButton(
+                onPressed: _markImportant,
+                icon: const Icon(Icons.star_outline,
+                    color: Colors.amber),
+                tooltip: 'Mark as important',
+              ),
             TextButton.icon(
               onPressed: _deleteSelected,
               icon: const Icon(Icons.delete_outline,
@@ -49,6 +59,7 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
                 style: const TextStyle(color: AppTheme.error),
               ),
             ),
+          ],
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -107,6 +118,37 @@ class _CleanupScreenState extends ConsumerState<CleanupScreen>
         _selected.add(id);
       }
     });
+  }
+
+  Future<void> _markImportant() async {
+    if (_selected.isEmpty) return;
+
+    final db = ref.read(databaseServiceProvider);
+    final importantService = ref.read(importantServiceProvider);
+    final photos = await db.getPhotosByIds(_selected.toList());
+
+    if (!mounted) return;
+    final count = photos.length;
+    final moved = await importantService.markMultipleAsImportant(photos);
+
+    if (!mounted) return;
+    setState(() => _selected.clear());
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
+    ref.invalidate(importantPhotosProvider);
+    ref.invalidate(importantCountProvider);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            '$count photo${count > 1 ? 's' : ''} marked as important'
+            '${moved > 0 ? ' — moved to Important folder' : ''}'),
+        backgroundColor: Colors.amber.shade700,
+      ),
+    );
   }
 
   Future<void> _deleteSelected() async {
@@ -331,6 +373,14 @@ class _FilteredPhotoList extends ConsumerWidget {
                 );
                 if (action == 'select' || action == 'deselect') {
                   onToggle(photo.id);
+                } else if (action == 'mark_important') {
+                  await _handleMarkImportant(context, ref, photo);
+                } else if (action == 'edit') {
+                  await PhotoEditorScreen.open(
+                    context,
+                    imagePath: photo.path,
+                    fileName: photo.name,
+                  );
                 }
               },
               onLongPress: () => onToggle(photo.id),
@@ -343,6 +393,28 @@ class _FilteredPhotoList extends ConsumerWidget {
       error: (e, _) => Center(
           child: Text('Error: $e',
               style: const TextStyle(color: AppTheme.error))),
+    );
+  }
+
+  Future<void> _handleMarkImportant(
+      BuildContext context, WidgetRef ref, PhotoAsset photo) async {
+    final importantService = ref.read(importantServiceProvider);
+    final result = await importantService.markAsImportant(photo);
+
+    ref.invalidate(junkPhotosProvider);
+    ref.invalidate(blurryPhotosProvider);
+    ref.invalidate(storageStatsProvider);
+    ref.invalidate(unreviewedCountProvider);
+    ref.invalidate(importantPhotosProvider);
+    ref.invalidate(importantCountProvider);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${photo.name} marked as important'
+            '${result != null ? ' — moved to Important folder' : ''}'),
+        backgroundColor: Colors.amber.shade700,
+      ),
     );
   }
 }

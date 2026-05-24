@@ -41,6 +41,9 @@ dependencies:
   googleapis: ^13.2.0
   http: ^1.2.1
 
+  # Photo editor
+  pro_image_editor: ^7.0.5
+
   # Background work
   workmanager: ^0.5.2
 

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
 import '../../providers/app_providers.dart';
+import '../../services/services.dart';
 import '../../theme/app_theme.dart';
+import '../editor/photo_editor_screen.dart';
 
 /// Smart photo browser — swipe through all unreviewed photos.
 /// Swipe right or tap ✓ = mark as OK (won't appear in cleanup again).
@@ -404,29 +406,41 @@ class _PhotoBrowserScreenState extends ConsumerState<PhotoBrowserScreen>
                 label: 'Delete',
                 onTap: _onSwipeLeft,
               ),
-              // Info
-              Column(
-                children: [
-                  Text(
-                    photo.name,
-                    style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${photo.sizeMB.toStringAsFixed(1)} MB · ${photo.category.name}',
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 11),
-                  ),
-                  if (photo.hasIssues)
-                    Text(
-                      photo.issues.map((i) => i.name).join(', '),
-                      style: const TextStyle(
-                          color: Colors.orange, fontSize: 10),
+              // Mark Important
+              _ActionButton(
+                icon: Icons.star_outline,
+                color: Colors.amber,
+                label: 'Important',
+                onTap: () async {
+                  final svc = ImportantService();
+                  await svc.markAsImportant(photo);
+                  ref.invalidate(importantPhotosProvider);
+                  ref.invalidate(importantCountProvider);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${photo.name} marked as important'),
+                      backgroundColor: Colors.amber.shade700,
+                      duration: const Duration(seconds: 1),
                     ),
-                ],
+                  );
+                  _onSwipeRight(); // auto-advance
+                },
+              ),
+              // Edit
+              _ActionButton(
+                icon: Icons.edit_outlined,
+                color: AppTheme.primary,
+                label: 'Edit',
+                onTap: () async {
+                  if (photo.path.isNotEmpty) {
+                    await PhotoEditorScreen.open(
+                      context,
+                      imagePath: photo.path,
+                      fileName: photo.name,
+                    );
+                  }
+                },
               ),
               // Keep button
               _ActionButton(

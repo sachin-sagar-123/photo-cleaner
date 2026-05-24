@@ -13,6 +13,17 @@ final driveSyncServiceProvider = Provider((_) => DriveSyncService());
 final vaultServiceProvider = Provider((_) => DocumentVaultService());
 final scanPreferencesProvider = Provider((_) => ScanPreferencesService());
 final backgroundScanProvider = Provider((_) => BackgroundScanService());
+final importantServiceProvider = Provider((_) => ImportantService());
+
+final importantPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getImportantPhotos();
+});
+
+final importantCountProvider = FutureProvider<int>((ref) async {
+  final db = ref.read(databaseServiceProvider);
+  return db.getImportantCount();
+});
 
 // ── Scan State ────────────────────────────────────────────────────────────
 

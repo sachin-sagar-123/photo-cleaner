@@ -1,24 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
 import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import '../models/collage_template.dart';
 
-/// Background style for the collage.
-enum CollageBackground {
-  black,
-  white,
-  dark,
-  gradient1, // purple-blue
-  gradient2, // teal-green
-  gradient3, // orange-pink
-  blur,
-}
-
-/// Renders collages from photos using predefined templates.
+/// Renders collages from photos using the template system.
 class CollageService {
   /// Renders a collage to an image file.
   ///
@@ -29,7 +18,7 @@ class CollageService {
   Future<File> renderCollage({
     required CollageTemplate template,
     required List<String> photoPaths,
-    CollageBackground background = CollageBackground.dark,
+    CollageBgStyle bgStyle = const CollageBgStyle(),
     int outputSize = 1080,
     int borderWidth = 8,
     int borderRadius = 12,
@@ -41,7 +30,7 @@ class CollageService {
     final canvas = img.Image(width: canvasW, height: canvasH);
 
     // Fill background
-    _fillBackground(canvas, background);
+    _fillBackground(canvas, bgStyle);
 
     // Draw each photo into its slot
     for (int i = 0; i < template.slots.length; i++) {
@@ -61,10 +50,12 @@ class CollageService {
         if (photo == null) continue;
 
         // Crop-fit the photo to the slot dimensions
-        photo = img.copyResizeCropSquare(photo,
-            size: slotW > slotH ? slotW : slotH);
-        photo = img.copyCrop(photo,
-            x: 0, y: 0, width: slotW, height: slotH);
+        photo = _cropFit(photo, slotW, slotH);
+
+        // Apply border radius mask if needed
+        if (borderRadius > 0) {
+          _applyRoundedCorners(photo, borderRadius);
+        }
 
         // Composite onto canvas
         img.compositeImage(canvas, photo, dstX: slotX, dstY: slotY);
@@ -101,25 +92,72 @@ class CollageService {
     return collageFile.copy(dest);
   }
 
-  void _fillBackground(img.Image canvas, CollageBackground bg) {
-    switch (bg) {
-      case CollageBackground.black:
-        img.fill(canvas, color: img.ColorRgba8(0, 0, 0, 255));
-      case CollageBackground.white:
-        img.fill(canvas, color: img.ColorRgba8(255, 255, 255, 255));
-      case CollageBackground.dark:
-        img.fill(canvas, color: img.ColorRgba8(19, 19, 31, 255));
-      case CollageBackground.gradient1:
-        _fillGradient(canvas, img.ColorRgba8(108, 99, 255, 255),
-            img.ColorRgba8(3, 218, 198, 255));
-      case CollageBackground.gradient2:
-        _fillGradient(canvas, img.ColorRgba8(3, 218, 198, 255),
-            img.ColorRgba8(72, 187, 120, 255));
-      case CollageBackground.gradient3:
-        _fillGradient(canvas, img.ColorRgba8(237, 137, 54, 255),
-            img.ColorRgba8(229, 62, 62, 255));
-      case CollageBackground.blur:
-        img.fill(canvas, color: img.ColorRgba8(30, 30, 46, 255));
+  /// Crop-fit: resize and center-crop to exactly fill the target dimensions.
+  img.Image _cropFit(img.Image src, int targetW, int targetH) {
+    final srcAR = src.width / src.height;
+    final targetAR = targetW / targetH;
+
+    int resizeW, resizeH;
+    if (srcAR > targetAR) {
+      // Source is wider — fit height, crop width
+      resizeH = targetH;
+      resizeW = (targetH * srcAR).round();
+    } else {
+      // Source is taller — fit width, crop height
+      resizeW = targetW;
+      resizeH = (targetW / srcAR).round();
+    }
+
+    var resized = img.copyResize(src, width: resizeW, height: resizeH);
+
+    // Center crop
+    final cropX = (resizeW - targetW) ~/ 2;
+    final cropY = (resizeH - targetH) ~/ 2;
+    return img.copyCrop(resized,
+        x: cropX, y: cropY, width: targetW, height: targetH);
+  }
+
+  /// Apply rounded corners by making corner pixels transparent.
+  void _applyRoundedCorners(img.Image image, int radius) {
+    final r = math.min(radius, math.min(image.width, image.height) ~/ 2);
+    final transparent = img.ColorRgba8(0, 0, 0, 0);
+
+    for (int y = 0; y < r; y++) {
+      for (int x = 0; x < r; x++) {
+        final dx = r - x - 1;
+        final dy = r - y - 1;
+        if (dx * dx + dy * dy > r * r) {
+          // Top-left
+          image.setPixel(x, y, transparent);
+          // Top-right
+          image.setPixel(image.width - 1 - x, y, transparent);
+          // Bottom-left
+          image.setPixel(x, image.height - 1 - y, transparent);
+          // Bottom-right
+          image.setPixel(image.width - 1 - x, image.height - 1 - y, transparent);
+        }
+      }
+    }
+  }
+
+  void _fillBackground(img.Image canvas, CollageBgStyle bg) {
+    switch (bg.type) {
+      case CollageBgType.solid:
+        final c = bg.color;
+        img.fill(canvas,
+            color: img.ColorRgba8(c.red, c.green, c.blue, c.alpha));
+      case CollageBgType.gradient:
+        final end = bg.gradientEnd ?? bg.color;
+        _fillGradient(
+          canvas,
+          img.ColorRgba8(bg.color.red, bg.color.green, bg.color.blue, 255),
+          img.ColorRgba8(end.red, end.green, end.blue, 255),
+        );
+      case CollageBgType.pattern:
+        // Fallback to solid
+        final c = bg.color;
+        img.fill(canvas,
+            color: img.ColorRgba8(c.red, c.green, c.blue, c.alpha));
     }
   }
 
