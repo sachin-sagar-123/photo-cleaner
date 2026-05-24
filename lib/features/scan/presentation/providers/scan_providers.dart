@@ -1,14 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/cache/cache_providers.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../models/models.dart';
 import '../../../../services/services.dart';
 import '../../data/photo_dao.dart';
+import '../../data/scan_repository.dart';
 
-// ── DAOs & Services ───────────────────────────────────────────────────────
+// ── DAOs, Repository & Services ───────────────────────────────────────────
 
 final photoDaoProvider = Provider((ref) =>
     PhotoDao(ref.read(appDatabaseProvider)));
+
+final scanRepositoryProvider = Provider((ref) =>
+    ScanRepository(
+      ref.read(photoDaoProvider),
+      ref.read(memoryCacheProvider),
+    ));
 
 final scannerServiceProvider = Provider((_) => ScannerService());
 
@@ -83,6 +91,8 @@ class ScanNotifier extends StateNotifier<ScanState> {
       await for (final progress in _scanner.scan(forceFullRescan: forceFullRescan)) {
         state = state.copyWith(progress: progress);
       }
+      // Invalidate cached data after scan completes
+      _ref.read(scanRepositoryProvider).invalidate();
       await _loadScanMetadata();
       final bgService = _ref.read(backgroundScanProvider);
       await bgService.clearPendingScan();
@@ -98,7 +108,7 @@ final scanStateProvider = StateNotifierProvider<ScanNotifier, ScanState>((ref) {
   return ScanNotifier(ref.read(scannerServiceProvider), ref);
 });
 
-// ── Photo queries ─────────────────────────────────────────────────────────
+// ── Photo queries (via cached repository) ─────────────────────────────────
 
 final photosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
   final dao = ref.read(photoDaoProvider);
@@ -111,5 +121,5 @@ final photosByCategoryProvider =
   return db.getPhotosByCategory(cat);
 });
 
-// Legacy bridge — will be removed once all screens use DAOs directly
+// Legacy bridge — will be removed once all screens use repositories directly
 final databaseServiceProvider = Provider((_) => DatabaseService());

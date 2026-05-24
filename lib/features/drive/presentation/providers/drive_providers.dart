@@ -1,14 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/cache/cache_providers.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../models/photo_asset.dart';
 import '../../../../services/services.dart';
 import '../../data/drive_dao.dart';
+import '../../data/drive_repository.dart';
 
 export '../../../../services/drive_sync_service.dart' show DriveScanProgress;
 
 final driveDaoProvider = Provider((ref) =>
     DriveDao(ref.read(appDatabaseProvider)));
+
+final driveRepositoryProvider = Provider((ref) =>
+    DriveRepository(
+      ref.read(driveDaoProvider),
+      ref.read(memoryCacheProvider),
+    ));
 
 final driveSyncServiceProvider = Provider((_) => DriveSyncService());
 
@@ -57,6 +65,8 @@ class DriveScanNotifier extends StateNotifier<DriveScanState> {
       await for (final progress in _drive.scanDrive()) {
         state = state.copyWith(progress: progress);
       }
+      // Invalidate cached repository data + providers after scan
+      _ref?.read(driveRepositoryProvider).invalidate();
       _ref?.invalidate(drivePhotosProvider);
       _ref?.invalidate(driveDuplicatesProvider);
       state = state.copyWith(isScanning: false, completed: true);
@@ -71,31 +81,34 @@ final driveScanStateProvider =
   return DriveScanNotifier(ref.read(driveSyncServiceProvider), ref);
 });
 
-// ── Drive photo providers ─────────────────────────────────────────────────
+// ── Drive photo providers (via cached repository) ─────────────────────────
 
 final drivePhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
-  final dao = ref.read(driveDaoProvider);
-  return dao.getDrivePhotos();
+  final repo = ref.read(driveRepositoryProvider);
+  final result = await repo.getDrivePhotos();
+  return result.data;
 });
 
 final driveOnlyPhotosProvider = FutureProvider<List<PhotoAsset>>((ref) async {
-  final dao = ref.read(driveDaoProvider);
-  return dao.getDriveOnlyPhotos();
+  final repo = ref.read(driveRepositoryProvider);
+  final result = await repo.getDriveOnlyPhotos();
+  return result.data;
 });
 
 final driveDuplicatesProvider = FutureProvider<List<PhotoAsset>>((ref) async {
-  final dao = ref.read(driveDaoProvider);
-  return dao.getLocalDriveDuplicates();
+  final repo = ref.read(driveRepositoryProvider);
+  final result = await repo.getLocalDriveDuplicates();
+  return result.data;
 });
 
 final driveBlurryProvider = FutureProvider<List<PhotoAsset>>((ref) async {
-  final dao = ref.read(driveDaoProvider);
-  final all = await dao.getDrivePhotos();
-  return all.where((p) => p.isBlurry).toList();
+  final repo = ref.read(driveRepositoryProvider);
+  final result = await repo.getDrivePhotos();
+  return result.data.where((p) => p.isBlurry).toList();
 });
 
 final driveJunkProvider = FutureProvider<List<PhotoAsset>>((ref) async {
-  final dao = ref.read(driveDaoProvider);
-  final all = await dao.getDrivePhotos();
-  return all.where((p) => p.isJunk).toList();
+  final repo = ref.read(driveRepositoryProvider);
+  final result = await repo.getDrivePhotos();
+  return result.data.where((p) => p.isJunk).toList();
 });
