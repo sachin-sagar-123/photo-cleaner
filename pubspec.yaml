@@ -43,6 +43,7 @@ dependencies:
 
   # Photo editor
   pro_image_editor: ^7.0.5
+  emoji_picker_flutter: 4.3.0
 
   # Background work
   workmanager: ^0.5.2
