@@ -55,13 +55,22 @@ class DriveSyncService {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
+  /// Returns null on success, or an error message string on failure.
+  String? _lastSignInError;
+  String? get lastSignInError => _lastSignInError;
+
   Future<bool> signIn() async {
+    _lastSignInError = null;
     try {
       _currentUser = await _googleSignIn.signIn();
-      if (_currentUser == null) return false;
+      if (_currentUser == null) {
+        _lastSignInError = 'Sign-in was cancelled.';
+        return false;
+      }
       await _initDriveApi();
       return true;
-    } catch (_) {
+    } catch (e) {
+      _lastSignInError = e.toString();
       return false;
     }
   }

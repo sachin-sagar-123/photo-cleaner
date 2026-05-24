@@ -33,22 +33,40 @@ class ScannerService {
           'Photo library permission denied. Please grant access in Settings.');
     }
 
-    final albums = await PhotoManager.getAssetPathList(
+    // Try "All Photos" first, fall back to listing all albums
+    var albums = await PhotoManager.getAssetPathList(
       type: RequestType.image,
       onlyAll: true,
     );
     if (albums.isEmpty) {
-      // No albums found — yield a "done" event with 0 total so UI shows empty state
+      albums = await PhotoManager.getAssetPathList(
+        type: RequestType.image,
+      );
+    }
+    if (albums.isEmpty) {
       yield const ScanProgress(scanned: 0, total: 0, currentFile: 'No photos found');
       return;
     }
 
-    final allAssets = await albums.first.getAssetListRange(
-      start: 0,
-      end: await albums.first.assetCountAsync,
-    );
+    // Collect assets from all albums, deduplicate by ID
+    final seenIds = <String>{};
+    final allAssets = <AssetEntity>[];
+    for (final album in albums) {
+      final count = await album.assetCountAsync;
+      if (count == 0) continue;
+      final assets = await album.getAssetListRange(start: 0, end: count);
+      for (final asset in assets) {
+        if (seenIds.add(asset.id)) {
+          allAssets.add(asset);
+        }
+      }
+    }
 
     final total = allAssets.length;
+    if (total == 0) {
+      yield const ScanProgress(scanned: 0, total: 0, currentFile: 'No photos found');
+      return;
+    }
     final photoAssets = <PhotoAsset>[];
 
     for (int i = 0; i < allAssets.length; i++) {

@@ -123,19 +123,81 @@ class _ScanSection extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () =>
-            ref.read(scanStateProvider.notifier).startScan(),
-        icon: const Icon(Icons.search_rounded),
-        label: const Text('Scan Photos'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w600),
+    final lastProgress = scanState.progress;
+    final scanDone = !scanState.isScanning && lastProgress != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (scanState.error != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppTheme.error.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppTheme.error, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    scanState.error!,
+                    style: const TextStyle(
+                        color: AppTheme.error, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (scanDone && scanState.error == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.secondary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppTheme.secondary.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    color: AppTheme.secondary, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  lastProgress.total > 0
+                      ? 'Scan complete — ${lastProgress.total} photos found'
+                      : 'Scan complete — no photos found on device',
+                  style: const TextStyle(
+                      color: AppTheme.secondary, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () =>
+                ref.read(scanStateProvider.notifier).startScan(),
+            icon: const Icon(Icons.search_rounded),
+            label: Text(scanState.error != null
+                ? 'Retry Scan'
+                : scanDone
+                    ? 'Re-scan Photos'
+                    : 'Scan Photos'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              textStyle: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
