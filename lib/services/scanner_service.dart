@@ -6,7 +6,6 @@ import '../models/models.dart';
 import 'database_service.dart';
 import 'duplicate_detector_service.dart';
 import 'ml_analysis_service.dart';
-import 'junk_detector_service.dart';
 import 'scan_preferences_service.dart';
 
 class ScanProgress {
@@ -27,16 +26,14 @@ class ScanProgress {
   double get percent => total > 0 ? scanned / total : 0;
 }
 
-/// Result of processing a single photo in an isolate.
+/// Lightweight result from isolate — no image bytes retained.
 class _PhotoProcessResult {
   final String id;
   final String path;
   final String name;
   final int sizeBytes;
   final DateTime createdAt;
-  final PhotoCategory category;
   final List<QualityIssue> issues;
-  final String suggestedName;
   final String? pHash;
   final String? dHash;
 
@@ -46,9 +43,7 @@ class _PhotoProcessResult {
     required this.name,
     required this.sizeBytes,
     required this.createdAt,
-    required this.category,
     required this.issues,
-    required this.suggestedName,
     this.pHash,
     this.dHash,
   });
@@ -72,29 +67,26 @@ class _PhotoData {
   });
 }
 
-/// Orchestrates the full scan pipeline with incremental and batch processing.
+/// Scan pipeline focused on duplicate + blurry detection.
 ///
-/// Key optimizations:
-/// 1. Incremental: skips photos already in DB (by asset ID)
-/// 2. Single decode: each photo decoded once, result shared across all analyses
-/// 3. Batch isolates: processes chunks in one isolate instead of 4 per photo
-/// 4. Chunked DB writes: upserts in batches instead of one giant batch
-/// 5. Memory-bounded: small batch size + immediate byte release keeps peak
-///    memory under ~30MB regardless of library size
+/// Optimizations vs previous version:
+/// 1. Parallel thumbnail I/O (3 concurrent reads vs sequential)
+/// 2. Larger batch size (20 vs 5) — 4× fewer isolate spawns
+/// 3. Only blur + hash analysis — no classification, junk, low-light
+/// 4. Chunked DB writes every 50 photos
 class ScannerService {
   final _db = DatabaseService();
   final _scanPrefs = ScanPreferencesService();
 
-  /// Batch size for isolate processing. 5 photos × ~5MB avg = ~25MB peak.
-  /// Smaller than before (was 20) to reduce memory pressure on low-RAM devices.
-  static const int _batchSize = 5;
+  /// 20 photos per isolate batch. At ~200KB/thumbnail = ~4MB peak per batch.
+  static const int _batchSize = 20;
 
-  /// DB write chunk size. Flush every 50 photos to avoid accumulating
-  /// PhotoAsset objects in memory.
+  /// Concurrent thumbnail reads.
+  static const int _ioConcurrency = 3;
+
+  /// DB write chunk size.
   static const int _dbChunkSize = 50;
 
-  /// Full scan: discovers all photos, skips already-scanned ones,
-  /// processes new photos in batches.
   Stream<ScanProgress> scan({bool forceFullRescan = false}) async* {
     final startTime = DateTime.now();
 
@@ -112,21 +104,16 @@ class ScannerService {
     }
 
     yield const ScanProgress(
-      scanned: 0,
-      total: 0,
+      scanned: 0, total: 0,
       currentFile: 'Loading photo library...',
       phase: 'loading',
     );
 
-    // Discover all device photos
     var albums = await PhotoManager.getAssetPathList(
-      type: RequestType.image,
-      onlyAll: true,
+      type: RequestType.image, onlyAll: true,
     );
     if (albums.isEmpty) {
-      albums = await PhotoManager.getAssetPathList(
-        type: RequestType.image,
-      );
+      albums = await PhotoManager.getAssetPathList(type: RequestType.image);
     }
     if (albums.isEmpty) {
       yield const ScanProgress(
@@ -134,7 +121,6 @@ class ScannerService {
       return;
     }
 
-    // Collect all assets, deduplicate by ID
     final seenIds = <String>{};
     final allAssets = <AssetEntity>[];
     for (final album in albums) {
@@ -142,9 +128,7 @@ class ScannerService {
       if (count == 0) continue;
       final assets = await album.getAssetListRange(start: 0, end: count);
       for (final asset in assets) {
-        if (seenIds.add(asset.id)) {
-          allAssets.add(asset);
-        }
+        if (seenIds.add(asset.id)) allAssets.add(asset);
       }
     }
 
@@ -155,13 +139,9 @@ class ScannerService {
       return;
     }
 
-    // --- Incremental: find which photos are new ---
-    // Single DB call for both incremental check and prune detection
     List<AssetEntity> toProcess;
     int skippedCount = 0;
-    final existingIds = forceFullRescan
-        ? <String>[]
-        : await _db.getAllPhotoIds();
+    final existingIds = forceFullRescan ? <String>[] : await _db.getAllPhotoIds();
 
     if (forceFullRescan) {
       toProcess = allAssets;
@@ -171,37 +151,28 @@ class ScannerService {
       skippedCount = totalOnDevice - toProcess.length;
     }
 
-    // --- Prune: remove DB entries for photos no longer on device ---
+    // Prune deleted photos from DB
     if (existingIds.isNotEmpty) {
-      final deviceIdSet = seenIds;
-      final staleIds =
-          existingIds.where((id) => !deviceIdSet.contains(id)).toList();
-      if (staleIds.isNotEmpty) {
-        await _db.deletePhotos(staleIds);
-      }
+      final staleIds = existingIds.where((id) => !seenIds.contains(id)).toList();
+      if (staleIds.isNotEmpty) await _db.deletePhotos(staleIds);
     }
 
     if (toProcess.isEmpty) {
       yield ScanProgress(
-        scanned: totalOnDevice,
-        total: totalOnDevice,
+        scanned: totalOnDevice, total: totalOnDevice,
         skipped: skippedCount,
-        currentFile: 'All photos already scanned',
-        phase: 'done',
+        currentFile: 'All photos already scanned', phase: 'done',
       );
       await _recordScanMetadata(startTime, totalOnDevice);
       return;
     }
 
     yield ScanProgress(
-      scanned: 0,
-      total: toProcess.length,
-      skipped: skippedCount,
+      scanned: 0, total: toProcess.length, skipped: skippedCount,
       currentFile: 'Starting scan of ${toProcess.length} new photos...',
       phase: 'scanning',
     );
 
-    // --- Process in batches ---
     final pendingResults = <PhotoAsset>[];
     int processed = 0;
 
@@ -211,56 +182,22 @@ class ScannerService {
       final batchEnd = (batchStart + _batchSize).clamp(0, toProcess.length);
       final batchEntities = toProcess.sublist(batchStart, batchEnd);
 
-      // Read photo data one at a time to avoid holding multiple full-res
-      // images in memory. Use thumbnail bytes for analysis (all algorithms
-      // downsample anyway), full file only for path/size metadata.
-      final batchPhotos = <_PhotoData>[];
-      for (final entity in batchEntities) {
-        try {
-          // Get file metadata (path, size) without reading full bytes
-          final file = await entity.file;
-          if (file == null) continue;
-          final stat = await file.stat();
-
-          // Use photo_manager thumbnail (max 1024px) for analysis.
-          // This is ~200KB vs 5-10MB for full-res — 25-50× less memory.
-          final thumbBytes = await entity.thumbnailDataWithSize(
-            const ThumbnailSize(1024, 1024),
-            quality: 80,
-          );
-          if (thumbBytes == null || thumbBytes.isEmpty) continue;
-
-          batchPhotos.add(_PhotoData(
-            id: entity.id,
-            path: file.path,
-            name: entity.title ?? 'photo.jpg',
-            sizeBytes: stat.size,
-            createdAt: entity.createDateTime,
-            bytes: thumbBytes,
-          ));
-        } catch (_) {
-          // Skip unreadable photos
-        }
-      }
+      // Parallel thumbnail I/O
+      final batchPhotos = await _loadThumbnailsParallel(batchEntities);
 
       if (batchPhotos.isEmpty) {
         processed += batchEntities.length;
         continue;
       }
 
-      // Process entire batch in a single isolate.
-      // After Isolate.run returns, batchPhotos (and their byte arrays)
-      // become eligible for GC since no references are held.
       List<_PhotoProcessResult> results;
       try {
-        results =
-            await Isolate.run(() => _processBatch(batchPhotos));
+        results = await Isolate.run(() => _processBatch(batchPhotos));
       } catch (_) {
         processed += batchEntities.length;
         continue;
       }
 
-      // Convert results to PhotoAsset (lightweight — no image bytes)
       final entityMap = {for (final e in batchEntities) e.id: e};
       for (final r in results) {
         pendingResults.add(PhotoAsset(
@@ -269,9 +206,7 @@ class ScannerService {
           name: r.name,
           sizeBytes: r.sizeBytes,
           createdAt: r.createdAt,
-          category: r.category,
           issues: r.issues,
-          suggestedName: r.suggestedName,
           pHash: r.pHash,
           dHash: r.dHash,
           entity: entityMap[r.id],
@@ -281,28 +216,23 @@ class ScannerService {
       processed += batchEntities.length;
 
       yield ScanProgress(
-        scanned: processed,
-        total: toProcess.length,
+        scanned: processed, total: toProcess.length,
         skipped: skippedCount,
         currentFile: batchPhotos.last.name,
         phase: 'scanning',
       );
 
-      // Flush to DB frequently to avoid accumulating PhotoAsset objects
       if (pendingResults.length >= _dbChunkSize) {
         await _db.upsertPhotos(pendingResults);
         pendingResults.clear();
       }
     }
 
-    // Write remaining results
     if (pendingResults.isNotEmpty) {
       yield ScanProgress(
-        scanned: processed,
-        total: toProcess.length,
+        scanned: processed, total: toProcess.length,
         skipped: skippedCount,
-        currentFile: 'Saving to database...',
-        phase: 'saving',
+        currentFile: 'Saving to database...', phase: 'saving',
       );
       await _db.upsertPhotos(pendingResults);
     }
@@ -310,12 +240,45 @@ class ScannerService {
     await _recordScanMetadata(startTime, totalOnDevice);
 
     yield ScanProgress(
-      scanned: toProcess.length,
-      total: toProcess.length,
+      scanned: toProcess.length, total: toProcess.length,
       skipped: skippedCount,
-      currentFile: 'Done',
-      phase: 'done',
+      currentFile: 'Done', phase: 'done',
     );
+  }
+
+  /// Load thumbnails with bounded parallelism (3 concurrent).
+  Future<List<_PhotoData>> _loadThumbnailsParallel(
+      List<AssetEntity> entities) async {
+    final results = <_PhotoData>[];
+    for (int i = 0; i < entities.length; i += _ioConcurrency) {
+      final chunk = entities.sublist(
+          i, (i + _ioConcurrency).clamp(0, entities.length));
+      final loaded = await Future.wait(chunk.map(_loadOneThumbnail));
+      for (final photo in loaded) {
+        if (photo != null) results.add(photo);
+      }
+    }
+    return results;
+  }
+
+  Future<_PhotoData?> _loadOneThumbnail(AssetEntity entity) async {
+    try {
+      final file = await entity.file;
+      if (file == null) return null;
+      final stat = await file.stat();
+      final thumbBytes = await entity.thumbnailDataWithSize(
+        const ThumbnailSize(1024, 1024), quality: 80,
+      );
+      if (thumbBytes == null || thumbBytes.isEmpty) return null;
+      return _PhotoData(
+        id: entity.id, path: file.path,
+        name: entity.title ?? 'photo.jpg',
+        sizeBytes: stat.size, createdAt: entity.createDateTime,
+        bytes: thumbBytes,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _recordScanMetadata(DateTime startTime, int count) async {
@@ -332,24 +295,19 @@ class ScannerService {
 
   // ── Batch processing (runs in isolate) ──────────────────────────────────
 
-  /// Processes a batch of photos in a single isolate.
-  /// Each photo is decoded once; the decoded image is reused for all analyses.
+  /// Only blur detection + perceptual hashing. No classification, no junk,
+  /// no low-light, no smart naming.
   static List<_PhotoProcessResult> _processBatch(List<_PhotoData> photos) {
     final results = <_PhotoProcessResult>[];
-
     for (final photo in photos) {
       try {
         final result = _processOnePhoto(photo);
         if (result != null) results.add(result);
-      } catch (_) {
-        // Skip photos that fail processing
-      }
+      } catch (_) {}
     }
-
     return results;
   }
 
-  /// Processes a single photo: decode once, run all analyses on the decoded image.
   static _PhotoProcessResult? _processOnePhoto(_PhotoData photo) {
     if (photo.bytes.isEmpty) return null;
 
@@ -361,43 +319,14 @@ class ScannerService {
     }
     if (image == null) return null;
 
-    // All analyses share this single decoded image
     final issues = <QualityIssue>[];
 
-    // Blur detection
+    // Blur detection — Laplacian variance
     if (MlAnalysisService.isBlurryStatic(image)) {
       issues.add(QualityIssue.blurry);
     }
 
-    // Low light detection
-    if (MlAnalysisService.isLowLightStatic(image)) {
-      issues.add(QualityIssue.lowLight);
-    }
-
-    // Junk detection (image-based)
-    if (MlAnalysisService.looksLikeJunkStatic(image)) {
-      issues.add(QualityIssue.junk);
-    }
-
-    // Junk detection (filename-based)
-    if (!issues.contains(QualityIssue.junk)) {
-      if (JunkDetectorService.isJunkByFilenameStatic(photo.name)) {
-        issues.add(QualityIssue.junk);
-      }
-    }
-
-    // Classification — reuse decoded image, skip re-decode
-    final category =
-        MlAnalysisService.classifyFromImage(image, photo.name);
-
-    // Smart naming
-    final suggestedName = MlAnalysisService.buildSmartNameStatic(
-      originalName: photo.name,
-      category: category,
-      createdAt: photo.createdAt,
-    );
-
-    // Perceptual hashes — computed from decoded image, no re-decode
+    // Perceptual hashes for duplicate detection
     final pHash = DuplicateDetectorService.computePHashFromImage(image);
     final dHash = DuplicateDetectorService.computeDHashFromImage(image);
 
@@ -407,9 +336,7 @@ class ScannerService {
       name: photo.name,
       sizeBytes: photo.sizeBytes,
       createdAt: photo.createdAt,
-      category: category,
       issues: issues,
-      suggestedName: suggestedName,
       pHash: pHash,
       dHash: dHash,
     );

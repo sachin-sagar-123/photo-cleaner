@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'cleanup/cleanup_screen.dart';
 import 'duplicates/duplicates_screen.dart';
-import 'collage/collage_screen.dart';
 import 'settings/settings_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -15,16 +14,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  /// Build only the active screen. Previous screens are disposed,
-  /// freeing their widget trees, image caches, and provider subscriptions.
-  /// IndexedStack kept all 5 screens alive (~30-50MB wasted).
   Widget _buildScreen(int index) {
     return switch (index) {
       0 => const DashboardScreen(),
       1 => const CleanupScreen(),
       2 => const DuplicatesScreen(),
-      3 => const CollageScreen(),
-      4 => const SettingsScreen(),
+      3 => const SettingsScreen(),
       _ => const DashboardScreen(),
     };
   }
@@ -35,8 +30,7 @@ class _MainShellState extends State<MainShell> {
       body: _buildScreen(_currentIndex),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (i) =>
-            setState(() => _currentIndex = i),
+        onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
@@ -44,19 +38,14 @@ class _MainShellState extends State<MainShell> {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.cleaning_services_outlined),
-            selectedIcon: Icon(Icons.cleaning_services),
-            label: 'Cleanup',
+            icon: Icon(Icons.blur_on_outlined),
+            selectedIcon: Icon(Icons.blur_on),
+            label: 'Blurry',
           ),
           NavigationDestination(
             icon: Icon(Icons.copy_outlined),
             selectedIcon: Icon(Icons.copy),
             label: 'Duplicates',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'Collage',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

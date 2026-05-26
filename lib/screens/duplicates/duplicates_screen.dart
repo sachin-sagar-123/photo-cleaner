@@ -151,7 +151,6 @@ class _DuplicatesScreenState
     setState(() => _selectedToDelete.clear());
     ref.invalidate(duplicatesProvider);
     ref.invalidate(storageStatsProvider);
-    ref.invalidate(unreviewedCountProvider);
   }
 }
 

@@ -1,7 +1,7 @@
 name: photo_cleaner
-description: AI-powered photo cleaner and organizer
+description: Photo cleanup app — find and remove blurry photos and duplicates
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -10,8 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Navigation & state
-  go_router: ^14.2.0
+  # State management
   flutter_riverpod: ^2.5.1
 
   # Storage & database
@@ -24,23 +23,8 @@ dependencies:
   image: ^4.2.0
   photo_manager: ^3.3.0
 
-  # Biometrics & security
-  local_auth: ^2.3.0
-  flutter_secure_storage: ^9.2.2
-
   # File operations
   permission_handler: ^11.3.1
-  share_plus: ^10.0.0
-  open_filex: ^4.5.0
-
-  # PDF export
-  pdf: ^3.11.1
-  printing: ^5.13.1
-
-  # Google Drive
-  google_sign_in: ^6.2.1
-  googleapis: ^13.2.0
-  http: ^1.2.1
 
   # Photo editor
   pro_image_editor: ^7.0.5
@@ -49,12 +33,7 @@ dependencies:
   # Background work
   workmanager: ^0.5.2
 
-  # AI providers
-  google_generative_ai: ^0.4.6
-
   # Utilities
-  intl: ^0.19.0
-  uuid: ^4.4.2
   crypto: ^3.0.3
   collection: ^1.18.0
 
