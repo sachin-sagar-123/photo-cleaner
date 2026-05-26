@@ -151,7 +151,6 @@ class _DuplicatesScreenState
     setState(() => _selectedToDelete.clear());
     ref.invalidate(duplicatesProvider);
     ref.invalidate(storageStatsProvider);
-    ref.invalidate(unreviewedCountProvider);
   }
 }
 
@@ -168,10 +167,10 @@ class _SummaryBanner extends StatelessWidget {
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.error.withOpacity(0.1),
+        color: AppTheme.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: AppTheme.error.withOpacity(0.3)),
+            color: AppTheme.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -323,7 +322,7 @@ class _DuplicateGroupCard extends StatelessWidget {
                                       vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppTheme.secondary
-                                    .withOpacity(0.9),
+                                    .withValues(alpha: 0.9),
                                 borderRadius:
                                     BorderRadius.circular(4),
                               ),
@@ -341,7 +340,7 @@ class _DuplicateGroupCard extends StatelessWidget {
                             height: 100,
                             decoration: BoxDecoration(
                               color: AppTheme.error
-                                  .withOpacity(0.4),
+                                  .withValues(alpha: 0.4),
                               borderRadius:
                                   BorderRadius.circular(8),
                               border: Border.all(

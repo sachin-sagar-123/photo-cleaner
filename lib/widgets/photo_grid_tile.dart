@@ -30,13 +30,8 @@ class PhotoGridTile extends StatelessWidget {
             child: Image.file(
               File(asset.path),
               fit: BoxFit.cover,
-              // Decode at thumbnail resolution instead of full 12MP.
-              // Grid cells are ~120px; 200px gives crisp display on 2x screens.
-              // This reduces memory from ~36MB (full RGBA) to ~160KB per tile.
               cacheWidth: 200,
               cacheHeight: 200,
-              // Don't keep decoded images in the global ImageCache beyond
-              // what's visible — the grid can have thousands of tiles.
               gaplessPlayback: true,
               errorBuilder: (_, __, ___) => Container(
                 color: AppTheme.surface,
@@ -47,35 +42,30 @@ class PhotoGridTile extends StatelessWidget {
           ),
           if (asset.hasIssues)
             Positioned(
-              top: 4,
-              left: 4,
-              child: _IssuesBadge(issues: asset.issues),
+              top: 4, left: 4,
+              child: _IssueBadge(issues: asset.issues),
             ),
           if (selected)
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.4),
+                color: AppTheme.primary.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppTheme.primary, width: 2),
               ),
               child: const Center(
-                child: Icon(Icons.check_circle,
-                    color: Colors.white, size: 28),
+                child: Icon(Icons.check_circle, color: Colors.white, size: 28),
               ),
             ),
-          if (asset.isBackedUp)
+          if (asset.isImportant)
             Positioned(
-              bottom: 4,
-              right: 4,
+              top: 4, right: 4,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondary.withOpacity(0.85),
+                  color: Colors.amber.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(Icons.cloud_done,
-                    size: 12, color: Colors.black),
+                child: const Icon(Icons.star, size: 12, color: Colors.white),
               ),
             ),
         ],
@@ -84,29 +74,23 @@ class PhotoGridTile extends StatelessWidget {
   }
 }
 
-class _IssuesBadge extends StatelessWidget {
+class _IssueBadge extends StatelessWidget {
   final List<QualityIssue> issues;
 
-  const _IssuesBadge({required this.issues});
+  const _IssueBadge({required this.issues});
 
   @override
   Widget build(BuildContext context) {
-    final color = issues.contains(QualityIssue.duplicate)
-        ? AppTheme.error
-        : issues.contains(QualityIssue.junk)
-            ? Colors.orange
-            : Colors.amber;
+    final isBlurry = issues.contains(QualityIssue.blurry);
+    final isDup = issues.contains(QualityIssue.duplicate);
 
-    final icon = issues.contains(QualityIssue.blurry)
-        ? Icons.blur_on
-        : issues.contains(QualityIssue.duplicate)
-            ? Icons.copy
-            : Icons.warning_amber;
+    final color = isDup ? AppTheme.error : Colors.orange;
+    final icon = isBlurry ? Icons.blur_on : Icons.copy;
 
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.9),
+        color: color.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Icon(icon, size: 12, color: Colors.white),

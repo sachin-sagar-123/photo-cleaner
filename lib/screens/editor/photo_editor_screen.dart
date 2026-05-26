@@ -154,7 +154,7 @@ class PhotoEditorScreen extends StatelessWidget {
         blurEditor: const BlurEditorConfigs(
           maxBlur: 25.0,
         ),
-        tuneEditor: TuneEditorConfigs(
+        tuneEditor: const TuneEditorConfigs(
           tuneAdjustmentOptions: [
             TuneAdjustmentItem(
               id: 'brightness',

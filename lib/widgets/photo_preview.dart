@@ -3,23 +3,30 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 
-/// Full-screen photo preview with metadata and actions.
-/// Returns the action taken: 'select', 'deselect', or null (dismissed).
-class PhotoPreview extends StatelessWidget {
+/// Full-screen photo preview with pinch-zoom and action toolbar.
+///
+/// Returns: 'select', 'deselect', 'edit', 'mark_important',
+/// 'unmark_important', 'delete', or null.
+class PhotoPreview extends StatefulWidget {
   final PhotoAsset asset;
   final bool isSelected;
+  final bool showDeleteAction;
+  final bool showKeepAction;
 
   const PhotoPreview({
     super.key,
     required this.asset,
     this.isSelected = false,
+    this.showDeleteAction = true,
+    this.showKeepAction = true,
   });
 
-  /// Shows the preview and returns the action: 'select', 'deselect', or null.
   static Future<String?> show(
     BuildContext context, {
     required PhotoAsset asset,
     bool isSelected = false,
+    bool showDeleteAction = true,
+    bool showKeepAction = true,
   }) {
     return Navigator.of(context).push<String>(
       PageRouteBuilder(
@@ -29,6 +36,8 @@ class PhotoPreview extends StatelessWidget {
         pageBuilder: (_, __, ___) => PhotoPreview(
           asset: asset,
           isSelected: isSelected,
+          showDeleteAction: showDeleteAction,
+          showKeepAction: showKeepAction,
         ),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -39,262 +48,165 @@ class PhotoPreview extends StatelessWidget {
   }
 
   @override
+  State<PhotoPreview> createState() => _PhotoPreviewState();
+}
+
+class _PhotoPreviewState extends State<PhotoPreview> {
+  bool _showInfo = false;
+
+  @override
   Widget build(BuildContext context) {
+    final asset = widget.asset;
+
     return Scaffold(
-      backgroundColor: Colors.black87,
-      body: SafeArea(
-        child: Column(
+      backgroundColor: Colors.transparent,
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        onDoubleTap: () => setState(() => _showInfo = !_showInfo),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            // Top bar
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Spacer(),
-                  // File info
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        asset.name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '${asset.sizeMB.toStringAsFixed(1)} MB · ${_formatDate(asset.createdAt)}',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                ],
+            // Photo with pinch-zoom
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: Center(
+                child: asset.path.isNotEmpty
+                    ? Image.file(File(asset.path), fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image, color: Colors.white54, size: 64))
+                    : const Icon(Icons.image_not_supported,
+                        color: Colors.white54, size: 64),
               ),
             ),
 
             // Issue badges
             if (asset.hasIssues)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 4),
-                child: Row(
-                  children: asset.issues.map((issue) {
-                    final (label, color, icon) = _issueInfo(issue);
-                    return Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: color.withOpacity(0.5)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, color: color, size: 14),
-                          const SizedBox(width: 4),
-                          Text(label,
-                              style: TextStyle(
-                                  color: color, fontSize: 12)),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 12,
+                child: Wrap(
+                  spacing: 6,
+                  children: [
+                    if (asset.isBlurry) _badge('Blurry', Colors.orange),
+                    if (asset.isDuplicate) _badge('Duplicate', Colors.red),
+                  ],
                 ),
               ),
 
-            // Photo
-            Expanded(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: Center(
-                  child: asset.path.isNotEmpty
-                      ? Image.file(
-                          File(asset.path),
-                          fit: BoxFit.contain,
-                          // Decode at 2× screen width for crisp pinch-zoom
-                          // without loading full 12MP into memory.
-                          cacheWidth: (MediaQuery.of(context).size.width * 2).toInt(),
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image,
-                                  color: Colors.white54, size: 64),
-                        )
-                      : const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.cloud_outlined,
-                                color: Colors.white54, size: 64),
-                            SizedBox(height: 12),
-                            Text('Drive-only photo',
-                                style: TextStyle(
-                                    color: Colors.white54)),
-                            Text('No local preview available',
-                                style: TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 12)),
-                          ],
-                        ),
+            // Important badge
+            if (asset.isImportant)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text('Important', style: TextStyle(
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Top bar with filename + info toggle
+            Positioned(
+              bottom: _showInfo ? 220 : 100,
+              left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(asset.name,
+                        style: const TextStyle(color: Colors.white, fontSize: 14,
+                            fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      '${_formatDate(asset.createdAt)} · ${_formatSize(asset.sizeBytes)}',
+                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
             ),
 
-            // Bottom actions
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
-              color: AppTheme.surface,
-              child: Row(
-                children: [
-                  // Category & suggested name
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          asset.category.name.toUpperCase(),
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1),
-                        ),
-                        if (asset.suggestedName != null)
-                          Text(
-                            asset.suggestedName!,
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 11),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        if (asset.isBackedUp)
-                          const Row(
-                            children: [
-                              Icon(Icons.cloud_done,
-                                  color: AppTheme.secondary,
-                                  size: 12),
-                              SizedBox(width: 4),
-                              Text('Backed up',
-                                  style: TextStyle(
-                                      color: AppTheme.secondary,
-                                      fontSize: 11)),
-                            ],
-                          ),
-                      ],
-                    ),
+            // Info panel
+            if (_showInfo)
+              Positioned(
+                bottom: 100, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.black.withValues(alpha: 0.85),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _infoRow(Icons.folder_outlined, 'Path',
+                          asset.path.isNotEmpty ? asset.path : 'N/A'),
+                      _infoRow(Icons.straighten, 'Size', _formatSize(asset.sizeBytes)),
+                      _infoRow(Icons.calendar_today, 'Created', _formatDate(asset.createdAt)),
+                      if (asset.hasIssues)
+                        _infoRow(Icons.warning_outlined, 'Issues',
+                            asset.issues.map((i) => i.name).join(', ')),
+                    ],
                   ),
+                ),
+              ),
 
-                  // Edit button — opens full photo editor
-                  if (asset.path.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        onPressed: () =>
-                            Navigator.pop(context, 'edit'),
-                        icon: const Icon(Icons.edit_outlined,
-                            color: AppTheme.primary, size: 24),
-                        tooltip: 'Edit photo',
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              AppTheme.primary.withOpacity(0.15),
-                        ),
-                      ),
+            // Action toolbar
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  left: 8, right: 8, top: 8,
+                  bottom: MediaQuery.of(context).padding.bottom + 8,
+                ),
+                color: Colors.black.withValues(alpha: 0.9),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _actionBtn(Icons.info_outline, 'Info', () {
+                      setState(() => _showInfo = !_showInfo);
+                    }),
+                    _actionBtn(Icons.edit_outlined, 'Edit', () {
+                      Navigator.pop(context, 'edit');
+                    }),
+                    if (asset.isImportant)
+                      _actionBtn(Icons.star, 'Unmark', () {
+                        Navigator.pop(context, 'unmark_important');
+                      }, color: Colors.amber)
+                    else
+                      _actionBtn(Icons.star_outline, 'Keep', () {
+                        Navigator.pop(context, 'mark_important');
+                      }),
+                    _actionBtn(
+                      widget.isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      widget.isSelected ? 'Selected' : 'Select',
+                      () => Navigator.pop(context, widget.isSelected ? 'deselect' : 'select'),
+                      color: widget.isSelected ? AppTheme.primary : null,
                     ),
-
-                  // Ask AI — analyze with Gemini
-                  if (asset.path.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        onPressed: () =>
-                            Navigator.pop(context, 'ask_ai'),
-                        icon: const Icon(Icons.auto_awesome,
-                            color: AppTheme.secondary, size: 24),
-                        tooltip: 'Ask AI',
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              AppTheme.secondary.withOpacity(0.15),
-                        ),
-                      ),
-                    ),
-
-                  // Mark Important — rescue from junk/blurry
-                  if (asset.issues.contains(QualityIssue.junk) ||
-                      asset.issues.contains(QualityIssue.blurry))
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        onPressed: () =>
-                            Navigator.pop(context, 'mark_important'),
-                        icon: const Icon(Icons.star_outline,
-                            color: Colors.amber, size: 24),
-                        tooltip: 'Mark as important',
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              Colors.amber.withOpacity(0.15),
-                        ),
-                      ),
-                    ),
-
-                  // Mark Important — for any photo (not just junk/blurry)
-                  if (!asset.issues.contains(QualityIssue.junk) &&
-                      !asset.issues.contains(QualityIssue.blurry) &&
-                      !asset.isImportant)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: IconButton(
-                        onPressed: () =>
-                            Navigator.pop(context, 'mark_important'),
-                        icon: const Icon(Icons.star_outline,
-                            color: Colors.amber, size: 22),
-                        tooltip: 'Mark as important',
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              Colors.amber.withOpacity(0.15),
-                        ),
-                      ),
-                    ),
-
-                  // Select / Deselect for deletion
-                  if (isSelected)
-                    ElevatedButton.icon(
-                      onPressed: () =>
-                          Navigator.pop(context, 'deselect'),
-                      icon: const Icon(Icons.undo, size: 18),
-                      label: const Text('Keep'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.secondary,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                      ),
-                    )
-                  else
-                    ElevatedButton.icon(
-                      onPressed: () =>
-                          Navigator.pop(context, 'select'),
-                      icon: const Icon(Icons.delete_outline,
-                          size: 18),
-                      label: const Text('Select to Delete'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.error,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                      ),
-                    ),
-                ],
+                    if (widget.showDeleteAction)
+                      _actionBtn(Icons.delete_outline, 'Delete', () {
+                        Navigator.pop(context, 'delete');
+                      }, color: AppTheme.error),
+                  ],
+                ),
               ),
             ),
           ],
@@ -303,19 +215,60 @@ class PhotoPreview extends StatelessWidget {
     );
   }
 
-  (String, Color, IconData) _issueInfo(QualityIssue issue) =>
-      switch (issue) {
-        QualityIssue.blurry => ('Blurry', Colors.orange, Icons.blur_on),
-        QualityIssue.closedEyes =>
-          ('Closed Eyes', Colors.amber, Icons.visibility_off),
-        QualityIssue.lowLight =>
-          ('Low Light', Colors.amber, Icons.dark_mode),
-        QualityIssue.duplicate =>
-          ('Duplicate', AppTheme.error, Icons.copy),
-        QualityIssue.junk =>
-          ('Junk', Colors.deepOrange, Icons.delete_outline),
-      };
+  Widget _badge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label, style: const TextStyle(
+          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _actionBtn(IconData icon, String label, VoidCallback onTap,
+      {Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color ?? Colors.white70, size: 22),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(
+                color: color ?? Colors.white54, fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white38, size: 16),
+          const SizedBox(width: 8),
+          Text('$label: ', style: const TextStyle(
+              color: Colors.white54, fontSize: 12)),
+          Expanded(child: Text(value, style: const TextStyle(
+              color: Colors.white, fontSize: 12),
+              overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
 
   String _formatDate(DateTime dt) =>
-      '${dt.day}/${dt.month}/${dt.year}';
+      '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 }
